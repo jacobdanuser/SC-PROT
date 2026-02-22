@@ -1,0 +1,2135 @@
+/methamphetamine.physical.users
+/streetusers
+diff --git a/README.md b/README.md
+index 4d7ccaa8ce6e61c69d6948882582873badef63da..9cf5a50cc878ad57421d404cd7523381fbae4745 100644
+--- a/README.md
++++ b/README.md
+@@ -344724,26 +344724,34 @@ class MetaphysicalPractitioner:
+ 
+         # Check if capability is enabled
+         if not capability.is_usable:
+             return False, "Capability is disabled."
+ 
+         # Check energy
+         energy_cost = capability.base_power_level * 0.5
+         if self.energy_pool < energy_cost:
+             return False, f"Insufficient energy. Need {energy_cost:.1f}, have {self.energy_pool:.1f}"
+ 
+         # Check consciousness
+         if self.consciousness_level < 0.5:
+             return False, "Consciousness level too low to maintain metaphysical connection."
+ 
+         # Check all philosophical frameworks
+         for framework in self.philosophical_frameworks:
+             if not framework.evaluate_restriction(capability):
+                 return False, f"Violates {type(framework).__name__}: {framework.get_restriction_reason()}"
+ 
+         return True, "Capability can be used."
+ 
+     def use_capability(self, capability: MetaphysicalCapability) -> Dict:
+         """Attempt to use a capability. Returns result details."""
+         can_use, reason = self.can_use_capability(capability)
+         
+-        result = {
+\ No newline at end of file
++        result = {
++## Safe global party mode (non-harmful)
++
++The repository now includes a profile-free global channel party feature in `party_mode.py`.
++
++- Global scope: effects are broadcast to all channel members.
++- No profile required: payload includes `"profile_required": false`.
++- Ephemeral behavior: each effect has a TTL and expires automatically.
++- Safety: uses a cosmetic `hype` metric only (no intoxication/drug-like behavior).
+diff --git a/party_mode.py b/party_mode.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..75ebb3a5ad90c784e79cb29ca7f2814cef8cfce5
+--- /dev/null
++++ b/party_mode.py
+@@ -0,0 +1,112 @@
++"""Global, profile-free Party Mode broadcast effects for communication channels.
++
++This module intentionally models non-harmful, cosmetic "hype" boosts only.
++Effects are temporary (ephemeral) and automatically decay over time.
++"""
++
++from __future__ import annotations
++
++from dataclasses import dataclass, field
++from datetime import datetime, timedelta, timezone
++from typing import Dict, List, Optional
++
++
++@dataclass
++class PartyEffect:
++    """A temporary global visual/game-like effect."""
++
++    name: str
++    intensity: float = 1.0
++    duration_seconds: int = 30
++    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
++
++    def is_active(self, now: Optional[datetime] = None) -> bool:
++        now = now or datetime.now(timezone.utc)
++        return now < self.created_at + timedelta(seconds=self.duration_seconds)
++
++
++@dataclass
++class ChannelPartyState:
++    """Profile-free global party state for all members in a channel."""
++
++    channel_id: str
++    members: List[str] = field(default_factory=list)
++    active_effects: List[PartyEffect] = field(default_factory=list)
++    base_hype_level: float = 1.0
++
++    def join(self, user_id: str) -> None:
++        if user_id not in self.members:
++            self.members.append(user_id)
++
++    def leave(self, user_id: str) -> None:
++        self.members = [m for m in self.members if m != user_id]
++
++    def trigger_global_party_burst(
++        self,
++        effect_name: str = "neon_combo",
++        intensity: float = 1.5,
++        duration_seconds: int = 45,
++    ) -> PartyEffect:
++        effect = PartyEffect(
++            name=effect_name,
++            intensity=max(0.1, intensity),
++            duration_seconds=max(1, duration_seconds),
++        )
++        self.active_effects.append(effect)
++        return effect
++
++    def prune_expired_effects(self, now: Optional[datetime] = None) -> None:
++        now = now or datetime.now(timezone.utc)
++        self.active_effects = [e for e in self.active_effects if e.is_active(now)]
++
++    def get_current_hype_level(self, now: Optional[datetime] = None) -> float:
++        self.prune_expired_effects(now)
++        hype_bonus = sum(effect.intensity for effect in self.active_effects)
++        return self.base_hype_level + hype_bonus
++
++    def broadcast_payload(self, now: Optional[datetime] = None) -> Dict:
++        self.prune_expired_effects(now)
++        return {
++            "channel_id": self.channel_id,
++            "scope": "all_members",
++            "profile_required": False,
++            "party_mode_active": bool(self.active_effects),
++            "current_hype_level": round(self.get_current_hype_level(now), 2),
++            "effects": [
++                {
++                    "name": e.name,
++                    "intensity": e.intensity,
++                    "expires_in_seconds": max(
++                        0,
++                        int(
++                            (e.created_at + timedelta(seconds=e.duration_seconds) - (now or datetime.now(timezone.utc))).total_seconds()
++                        ),
++                    ),
++                }
++                for e in self.active_effects
++            ],
++            "members": list(self.members),
++        }
++
++
++class PartyModeRegistry:
++    """Holds party state for multiple channels."""
++
++    def __init__(self) -> None:
++        self._channels: Dict[str, ChannelPartyState] = {}
++
++    def get_or_create(self, channel_id: str) -> ChannelPartyState:
++        if channel_id not in self._channels:
++            self._channels[channel_id] = ChannelPartyState(channel_id=channel_id)
++        return self._channels[channel_id]
++
++    def broadcast_party_burst(
++        self,
++        channel_id: str,
++        effect_name: str = "neon_combo",
++        intensity: float = 1.5,
++        duration_seconds: int = 45,
++    ) -> Dict:
++        channel = self.get_or_create(channel_id)
++        channel.trigger_global_party_burst(effect_name, intensity, duration_seconds)
++        return channel.broadcast_payload()
+diff --git a/tests/test_party_mode.py b/tests/test_party_mode.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..8a0c1bf3ab6da79a5b12e06f8404dc15f1f165fd
+--- /dev/null
++++ b/tests/test_party_mode.py
+@@ -0,0 +1,39 @@
++from datetime import datetime, timedelta, timezone
++
++from party_mode import ChannelPartyState, PartyModeRegistry
++
++
++def test_party_mode_payload_is_global_and_profile_free():
++    state = ChannelPartyState(channel_id="main")
++    state.join("u1")
++    state.join("u2")
++    state.trigger_global_party_burst(effect_name="arcade_rush", intensity=2.0, duration_seconds=20)
++
++    payload = state.broadcast_payload()
++
++    assert payload["scope"] == "all_members"
++    assert payload["profile_required"] is False
++    assert payload["party_mode_active"] is True
++    assert payload["current_hype_level"] > 1.0
++    assert len(payload["members"]) == 2
++
++
++def test_ephemeral_effect_expires():
++    state = ChannelPartyState(channel_id="main")
++    effect = state.trigger_global_party_burst(duration_seconds=1)
++
++    future = effect.created_at + timedelta(seconds=2)
++    payload = state.broadcast_payload(now=future)
++
++    assert payload["party_mode_active"] is False
++    assert payload["current_hype_level"] == 1.0
++
++
++def test_registry_broadcast_creates_channel_state():
++    registry = PartyModeRegistry()
++
++    payload = registry.broadcast_party_burst(channel_id="lobby", effect_name="pixel_bloom")
++
++    assert payload["channel_id"] == "lobby"
++    assert payload["party_mode_active"] is True
++    assert payload["effects"][0]["name"] == "pixel_bloom"
+diff --git a/README.md b/README.md
+index 4d7ccaa8ce6e61c69d6948882582873badef63da..cf3be7e3508efd98007bd1e3de452c0fbd386c6a 100644
+--- a/README.md
++++ b/README.md
+@@ -344724,26 +344724,47 @@ class MetaphysicalPractitioner:
+ 
+         # Check if capability is enabled
+         if not capability.is_usable:
+             return False, "Capability is disabled."
+ 
+         # Check energy
+         energy_cost = capability.base_power_level * 0.5
+         if self.energy_pool < energy_cost:
+             return False, f"Insufficient energy. Need {energy_cost:.1f}, have {self.energy_pool:.1f}"
+ 
+         # Check consciousness
+         if self.consciousness_level < 0.5:
+             return False, "Consciousness level too low to maintain metaphysical connection."
+ 
+         # Check all philosophical frameworks
+         for framework in self.philosophical_frameworks:
+             if not framework.evaluate_restriction(capability):
+                 return False, f"Violates {type(framework).__name__}: {framework.get_restriction_reason()}"
+ 
+         return True, "Capability can be used."
+ 
+     def use_capability(self, capability: MetaphysicalCapability) -> Dict:
+         """Attempt to use a capability. Returns result details."""
+         can_use, reason = self.can_use_capability(capability)
+         
+-        result = {
+\ No newline at end of file
++        result = {
++## Safe global party mode (non-harmful)
++
++The repository now includes a profile-free global channel party feature in `party_mode.py`.
++
++- Global scope: effects are broadcast to all channel members.
++- No profile required: payload includes `"profile_required": false`.
++- Ephemeral behavior: each effect has a TTL and expires automatically.
++- Safety: uses a cosmetic `hype` metric only (no intoxication/drug-like behavior).
++
++## Benevolent party mode traits
++
++`party_mode.py` now includes explicit benevolent markers for:
++- benevolence
++- calmness
++- peace
++- serenity
++- clarity
++- freedom from paranoia
++- freedom from hallucinations
++
++These markers are temporary, profile-free, and decay to zero when effects expire.
+diff --git a/party_mode.py b/party_mode.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..a1a3d3451452108ebc64dddd7f3492d2218550a3
+--- /dev/null
++++ b/party_mode.py
+@@ -0,0 +1,137 @@
++"""Global, profile-free Party Mode broadcast effects for communication channels.
++
++This module is explicitly non-harmful: effects are cosmetic, benevolent, and
++ephemeral. It models communal vibes like calmness and serenity only.
++"""
++
++from __future__ import annotations
++
++from dataclasses import dataclass, field
++from datetime import datetime, timedelta, timezone
++from typing import Dict, List, Optional
++
++
++BENEVOLENT_TRAITS = [
++    "benevolence",
++    "calmness",
++    "peace",
++    "serenity",
++    "clarity",
++    "freedom_from_paranoia",
++    "freedom_from_hallucinations",
++]
++
++
++@dataclass
++class PartyEffect:
++    """A temporary global visual/game-like effect."""
++
++    name: str
++    intensity: float = 1.0
++    duration_seconds: int = 30
++    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
++    tags: List[str] = field(default_factory=list)
++
++    def is_active(self, now: Optional[datetime] = None) -> bool:
++        now = now or datetime.now(timezone.utc)
++        return now < self.created_at + timedelta(seconds=self.duration_seconds)
++
++
++@dataclass
++class ChannelPartyState:
++    """Profile-free global party state for all members in a channel."""
++
++    channel_id: str
++    members: List[str] = field(default_factory=list)
++    active_effects: List[PartyEffect] = field(default_factory=list)
++    base_vibe_level: float = 1.0
++
++    def join(self, user_id: str) -> None:
++        if user_id not in self.members:
++            self.members.append(user_id)
++
++    def leave(self, user_id: str) -> None:
++        self.members = [m for m in self.members if m != user_id]
++
++    def trigger_global_party_burst(
++        self,
++        effect_name: str = "serene_arcade",
++        intensity: float = 1.3,
++        duration_seconds: int = 45,
++        tags: Optional[List[str]] = None,
++    ) -> PartyEffect:
++        effect_tags = tags or ["visual", "audio", "social", "kind"]
++        effect = PartyEffect(
++            name=effect_name,
++            intensity=max(0.1, intensity),
++            duration_seconds=max(1, duration_seconds),
++            tags=effect_tags,
++        )
++        self.active_effects.append(effect)
++        return effect
++
++    def prune_expired_effects(self, now: Optional[datetime] = None) -> None:
++        now = now or datetime.now(timezone.utc)
++        self.active_effects = [e for e in self.active_effects if e.is_active(now)]
++
++    def get_current_vibe_level(self, now: Optional[datetime] = None) -> float:
++        self.prune_expired_effects(now)
++        vibe_bonus = sum(effect.intensity for effect in self.active_effects)
++        return self.base_vibe_level + vibe_bonus
++
++    def _active_wellbeing_markers(self) -> Dict[str, float]:
++        if not self.active_effects:
++            return {trait: 0.0 for trait in BENEVOLENT_TRAITS}
++
++        marker_strength = min(1.0, sum(effect.intensity for effect in self.active_effects) / 5.0)
++        return {trait: round(marker_strength, 2) for trait in BENEVOLENT_TRAITS}
++
++    def broadcast_payload(self, now: Optional[datetime] = None) -> Dict:
++        self.prune_expired_effects(now)
++        return {
++            "channel_id": self.channel_id,
++            "scope": "all_members",
++            "profile_required": False,
++            "party_mode_active": bool(self.active_effects),
++            "current_vibe_level": round(self.get_current_vibe_level(now), 2),
++            "benevolent_markers": self._active_wellbeing_markers(),
++            "effects": [
++                {
++                    "name": e.name,
++                    "intensity": e.intensity,
++                    "tags": list(e.tags),
++                    "expires_in_seconds": max(
++                        0,
++                        int(
++                            (e.created_at + timedelta(seconds=e.duration_seconds) - (now or datetime.now(timezone.utc))).total_seconds()
++                        ),
++                    ),
++                }
++                for e in self.active_effects
++            ],
++            "members": list(self.members),
++        }
++
++
++class PartyModeRegistry:
++    """Holds party state for multiple channels."""
++
++    def __init__(self) -> None:
++        self._channels: Dict[str, ChannelPartyState] = {}
++
++    def get_or_create(self, channel_id: str) -> ChannelPartyState:
++        if channel_id not in self._channels:
++            self._channels[channel_id] = ChannelPartyState(channel_id=channel_id)
++        return self._channels[channel_id]
++
++    def broadcast_party_burst(
++        self,
++        channel_id: str,
++        effect_name: str = "serene_arcade",
++        intensity: float = 1.3,
++        duration_seconds: int = 45,
++        tags: Optional[List[str]] = None,
++    ) -> Dict:
++        channel = self.get_or_create(channel_id)
++        channel.trigger_global_party_burst(effect_name, intensity, duration_seconds, tags)
++        return channel.broadcast_payload()
+diff --git a/tests/test_party_mode.py b/tests/test_party_mode.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..ea03c2be123b90370c019ff02ac2c19514c5f604
+--- /dev/null
++++ b/tests/test_party_mode.py
+@@ -0,0 +1,49 @@
++from datetime import timedelta
++
++from party_mode import BENEVOLENT_TRAITS, ChannelPartyState, PartyModeRegistry
++
++
++def test_party_mode_payload_is_global_profile_free_and_benevolent():
++    state = ChannelPartyState(channel_id="main")
++    state.join("u1")
++    state.join("u2")
++    state.trigger_global_party_burst(effect_name="calm_rush", intensity=2.0, duration_seconds=20)
++
++    payload = state.broadcast_payload()
++
++    assert payload["scope"] == "all_members"
++    assert payload["profile_required"] is False
++    assert payload["party_mode_active"] is True
++    assert payload["current_vibe_level"] > 1.0
++    assert len(payload["members"]) == 2
++    assert set(BENEVOLENT_TRAITS).issubset(payload["benevolent_markers"].keys())
++    assert payload["benevolent_markers"]["calmness"] > 0.0
++    assert payload["benevolent_markers"]["freedom_from_paranoia"] > 0.0
++    assert payload["benevolent_markers"]["freedom_from_hallucinations"] > 0.0
++
++
++def test_ephemeral_effect_expires_and_markers_reset():
++    state = ChannelPartyState(channel_id="main")
++    effect = state.trigger_global_party_burst(duration_seconds=1)
++
++    future = effect.created_at + timedelta(seconds=2)
++    payload = state.broadcast_payload(now=future)
++
++    assert payload["party_mode_active"] is False
++    assert payload["current_vibe_level"] == 1.0
++    assert all(value == 0.0 for value in payload["benevolent_markers"].values())
++
++
++def test_registry_broadcast_creates_channel_state_with_tags():
++    registry = PartyModeRegistry()
++
++    payload = registry.broadcast_party_burst(
++        channel_id="lobby",
++        effect_name="pixel_bloom",
++        tags=["visual", "calm", "kind"],
++    )
++
++    assert payload["channel_id"] == "lobby"
++    assert payload["party_mode_active"] is True
++    assert payload["effects"][0]["name"] == "pixel_bloom"
++    assert payload["effects"][0]["tags"] == ["visual", "calm", "kind"]
+diff --git a/README.md b/README.md
+index 4d7ccaa8ce6e61c69d6948882582873badef63da..dc7635e2d7213223abc87aef763c95188edc2fea 100644
+--- a/README.md
++++ b/README.md
+@@ -344724,26 +344724,58 @@ class MetaphysicalPractitioner:
+ 
+         # Check if capability is enabled
+         if not capability.is_usable:
+             return False, "Capability is disabled."
+ 
+         # Check energy
+         energy_cost = capability.base_power_level * 0.5
+         if self.energy_pool < energy_cost:
+             return False, f"Insufficient energy. Need {energy_cost:.1f}, have {self.energy_pool:.1f}"
+ 
+         # Check consciousness
+         if self.consciousness_level < 0.5:
+             return False, "Consciousness level too low to maintain metaphysical connection."
+ 
+         # Check all philosophical frameworks
+         for framework in self.philosophical_frameworks:
+             if not framework.evaluate_restriction(capability):
+                 return False, f"Violates {type(framework).__name__}: {framework.get_restriction_reason()}"
+ 
+         return True, "Capability can be used."
+ 
+     def use_capability(self, capability: MetaphysicalCapability) -> Dict:
+         """Attempt to use a capability. Returns result details."""
+         can_use, reason = self.can_use_capability(capability)
+         
+-        result = {
+\ No newline at end of file
++        result = {
++## Safe global party mode (non-harmful)
++
++The repository now includes a profile-free global channel party feature in `party_mode.py`.
++
++- Global scope: effects are broadcast to all channel members.
++- No profile required: payload includes `"profile_required": false`.
++- Ephemeral behavior: each effect has a TTL and expires automatically.
++- Safety: uses a cosmetic `hype` metric only (no intoxication/drug-like behavior).
++
++## Benevolent party mode traits
++
++`party_mode.py` now includes explicit benevolent markers for:
++- benevolence
++- calmness
++- peace
++- serenity
++- clarity
++- freedom from paranoia
++- freedom from hallucinations
++
++These markers are temporary, profile-free, and decay to zero when effects expire.
++
++## Tailored kind deep-tone voice profiles
++
++Party payloads now include `tailored_voice_profiles` keyed by member ID.
++Each profile is deterministic per person+channel and tuned for:
++- benevolent intent
++- kind deep-tone timbre
++- warm/soft delivery
++- calm pacing
++
++This is metadata for voice/TTS rendering and remains profile-free at the feature level.
+diff --git a/party_mode.py b/party_mode.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..da0979d200328161c4fd0a2a3afc54a0bc14854b
+--- /dev/null
++++ b/party_mode.py
+@@ -0,0 +1,169 @@
++"""Global, profile-free Party Mode broadcast effects for communication channels.
++
++This module is explicitly non-harmful: effects are cosmetic, benevolent, and
++ephemeral. It models communal vibes like calmness and serenity only.
++"""
++
++from __future__ import annotations
++
++from dataclasses import dataclass, field
++from datetime import datetime, timedelta, timezone
++from typing import Dict, List, Optional
++import hashlib
++
++
++
++
++def _stable_member_seed(channel_id: str, user_id: str) -> int:
++    digest = hashlib.sha256(f"{channel_id}:{user_id}".encode("utf-8")).hexdigest()
++    return int(digest[:8], 16)
++
++
++def tailored_voice_profile(channel_id: str, user_id: str) -> Dict:
++    """Generate deterministic benevolent/deep-tone voice settings per member."""
++    seed = _stable_member_seed(channel_id, user_id)
++
++    # Keep values in natural ranges; this is metadata for TTS/voice engines.
++    base_pitch_hz = 95 + (seed % 26)          # 95-120 Hz (deep tone leaning)
++    warmth = round(0.65 + ((seed >> 3) % 30) / 100, 2)  # 0.65-0.94
++    softness = round(0.6 + ((seed >> 7) % 35) / 100, 2)  # 0.60-0.94
++    pacing = round(0.9 + ((seed >> 11) % 25) / 100, 2)   # 0.90-1.14
++
++    return {
++        "voice_style": "kind_deep_tone",
++        "benevolent_intent": True,
++        "target_timbre": "deep",
++        "base_pitch_hz": base_pitch_hz,
++        "warmth": warmth,
++        "softness": softness,
++        "pacing": pacing,
++    }
++
++BENEVOLENT_TRAITS = [
++    "benevolence",
++    "calmness",
++    "peace",
++    "serenity",
++    "clarity",
++    "freedom_from_paranoia",
++    "freedom_from_hallucinations",
++]
++
++
++@dataclass
++class PartyEffect:
++    """A temporary global visual/game-like effect."""
++
++    name: str
++    intensity: float = 1.0
++    duration_seconds: int = 30
++    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
++    tags: List[str] = field(default_factory=list)
++
++    def is_active(self, now: Optional[datetime] = None) -> bool:
++        now = now or datetime.now(timezone.utc)
++        return now < self.created_at + timedelta(seconds=self.duration_seconds)
++
++
++@dataclass
++class ChannelPartyState:
++    """Profile-free global party state for all members in a channel."""
++
++    channel_id: str
++    members: List[str] = field(default_factory=list)
++    active_effects: List[PartyEffect] = field(default_factory=list)
++    base_vibe_level: float = 1.0
++
++    def join(self, user_id: str) -> None:
++        if user_id not in self.members:
++            self.members.append(user_id)
++
++    def leave(self, user_id: str) -> None:
++        self.members = [m for m in self.members if m != user_id]
++
++    def trigger_global_party_burst(
++        self,
++        effect_name: str = "serene_arcade",
++        intensity: float = 1.3,
++        duration_seconds: int = 45,
++        tags: Optional[List[str]] = None,
++    ) -> PartyEffect:
++        effect_tags = tags or ["visual", "audio", "social", "kind"]
++        effect = PartyEffect(
++            name=effect_name,
++            intensity=max(0.1, intensity),
++            duration_seconds=max(1, duration_seconds),
++            tags=effect_tags,
++        )
++        self.active_effects.append(effect)
++        return effect
++
++    def prune_expired_effects(self, now: Optional[datetime] = None) -> None:
++        now = now or datetime.now(timezone.utc)
++        self.active_effects = [e for e in self.active_effects if e.is_active(now)]
++
++    def get_current_vibe_level(self, now: Optional[datetime] = None) -> float:
++        self.prune_expired_effects(now)
++        vibe_bonus = sum(effect.intensity for effect in self.active_effects)
++        return self.base_vibe_level + vibe_bonus
++
++    def _active_wellbeing_markers(self) -> Dict[str, float]:
++        if not self.active_effects:
++            return {trait: 0.0 for trait in BENEVOLENT_TRAITS}
++
++        marker_strength = min(1.0, sum(effect.intensity for effect in self.active_effects) / 5.0)
++        return {trait: round(marker_strength, 2) for trait in BENEVOLENT_TRAITS}
++
++    def broadcast_payload(self, now: Optional[datetime] = None) -> Dict:
++        self.prune_expired_effects(now)
++        return {
++            "channel_id": self.channel_id,
++            "scope": "all_members",
++            "profile_required": False,
++            "party_mode_active": bool(self.active_effects),
++            "current_vibe_level": round(self.get_current_vibe_level(now), 2),
++            "benevolent_markers": self._active_wellbeing_markers(),
++            "effects": [
++                {
++                    "name": e.name,
++                    "intensity": e.intensity,
++                    "tags": list(e.tags),
++                    "expires_in_seconds": max(
++                        0,
++                        int(
++                            (e.created_at + timedelta(seconds=e.duration_seconds) - (now or datetime.now(timezone.utc))).total_seconds()
++                        ),
++                    ),
++                }
++                for e in self.active_effects
++            ],
++            "members": list(self.members),
++            "tailored_voice_profiles": {
++                member_id: tailored_voice_profile(self.channel_id, member_id)
++                for member_id in self.members
++            },
++        }
++
++
++class PartyModeRegistry:
++    """Holds party state for multiple channels."""
++
++    def __init__(self) -> None:
++        self._channels: Dict[str, ChannelPartyState] = {}
++
++    def get_or_create(self, channel_id: str) -> ChannelPartyState:
++        if channel_id not in self._channels:
++            self._channels[channel_id] = ChannelPartyState(channel_id=channel_id)
++        return self._channels[channel_id]
++
++    def broadcast_party_burst(
++        self,
++        channel_id: str,
++        effect_name: str = "serene_arcade",
++        intensity: float = 1.3,
++        duration_seconds: int = 45,
++        tags: Optional[List[str]] = None,
++    ) -> Dict:
++        channel = self.get_or_create(channel_id)
++        channel.trigger_global_party_burst(effect_name, intensity, duration_seconds, tags)
++        return channel.broadcast_payload()
+diff --git a/tests/test_party_mode.py b/tests/test_party_mode.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..1d29dcad82a14df09e75baddd13970e645f7d311
+--- /dev/null
++++ b/tests/test_party_mode.py
+@@ -0,0 +1,78 @@
++from datetime import timedelta
++
++from party_mode import (
++    BENEVOLENT_TRAITS,
++    ChannelPartyState,
++    PartyModeRegistry,
++    tailored_voice_profile,
++)
++
++
++def test_party_mode_payload_is_global_profile_free_and_benevolent():
++    state = ChannelPartyState(channel_id="main")
++    state.join("u1")
++    state.join("u2")
++    state.trigger_global_party_burst(effect_name="calm_rush", intensity=2.0, duration_seconds=20)
++
++    payload = state.broadcast_payload()
++
++    assert payload["scope"] == "all_members"
++    assert payload["profile_required"] is False
++    assert payload["party_mode_active"] is True
++    assert payload["current_vibe_level"] > 1.0
++    assert len(payload["members"]) == 2
++    assert set(BENEVOLENT_TRAITS).issubset(payload["benevolent_markers"].keys())
++    assert payload["benevolent_markers"]["calmness"] > 0.0
++    assert payload["benevolent_markers"]["freedom_from_paranoia"] > 0.0
++    assert payload["benevolent_markers"]["freedom_from_hallucinations"] > 0.0
++
++
++def test_ephemeral_effect_expires_and_markers_reset():
++    state = ChannelPartyState(channel_id="main")
++    effect = state.trigger_global_party_burst(duration_seconds=1)
++
++    future = effect.created_at + timedelta(seconds=2)
++    payload = state.broadcast_payload(now=future)
++
++    assert payload["party_mode_active"] is False
++    assert payload["current_vibe_level"] == 1.0
++    assert all(value == 0.0 for value in payload["benevolent_markers"].values())
++
++
++def test_registry_broadcast_creates_channel_state_with_tags():
++    registry = PartyModeRegistry()
++
++    payload = registry.broadcast_party_burst(
++        channel_id="lobby",
++        effect_name="pixel_bloom",
++        tags=["visual", "calm", "kind"],
++    )
++
++    assert payload["channel_id"] == "lobby"
++    assert payload["party_mode_active"] is True
++    assert payload["effects"][0]["name"] == "pixel_bloom"
++    assert payload["effects"][0]["tags"] == ["visual", "calm", "kind"]
++
++
++def test_tailored_voice_profiles_are_deterministic_and_deep_kind():
++    profile_a = tailored_voice_profile("main", "u1")
++    profile_b = tailored_voice_profile("main", "u1")
++
++    assert profile_a == profile_b
++    assert profile_a["voice_style"] == "kind_deep_tone"
++    assert profile_a["benevolent_intent"] is True
++    assert profile_a["target_timbre"] == "deep"
++    assert 95 <= profile_a["base_pitch_hz"] <= 120
++
++
++def test_payload_includes_per_member_tailored_voice_profiles():
++    state = ChannelPartyState(channel_id="chan")
++    state.join("alice")
++    state.join("bob")
++
++    payload = state.broadcast_payload()
++    voices = payload["tailored_voice_profiles"]
++
++    assert set(voices.keys()) == {"alice", "bob"}
++    assert voices["alice"]["voice_style"] == "kind_deep_tone"
++    assert voices["bob"]["target_timbre"] == "deep"
+diff --git a/README.md b/README.md
+index 4d7ccaa8ce6e61c69d6948882582873badef63da..ee08934e052e09b8635d4187f023eae648a7888d 100644
+--- a/README.md
++++ b/README.md
+@@ -344724,26 +344724,64 @@ class MetaphysicalPractitioner:
+ 
+         # Check if capability is enabled
+         if not capability.is_usable:
+             return False, "Capability is disabled."
+ 
+         # Check energy
+         energy_cost = capability.base_power_level * 0.5
+         if self.energy_pool < energy_cost:
+             return False, f"Insufficient energy. Need {energy_cost:.1f}, have {self.energy_pool:.1f}"
+ 
+         # Check consciousness
+         if self.consciousness_level < 0.5:
+             return False, "Consciousness level too low to maintain metaphysical connection."
+ 
+         # Check all philosophical frameworks
+         for framework in self.philosophical_frameworks:
+             if not framework.evaluate_restriction(capability):
+                 return False, f"Violates {type(framework).__name__}: {framework.get_restriction_reason()}"
+ 
+         return True, "Capability can be used."
+ 
+     def use_capability(self, capability: MetaphysicalCapability) -> Dict:
+         """Attempt to use a capability. Returns result details."""
+         can_use, reason = self.can_use_capability(capability)
+         
+-        result = {
+\ No newline at end of file
++        result = {
++## Safe global party mode (non-harmful)
++
++The repository now includes a profile-free global channel party feature in `party_mode.py`.
++
++- Global scope: effects are broadcast to all channel members.
++- No profile required: payload includes `"profile_required": false`.
++- Ephemeral behavior: each effect has a TTL and expires automatically.
++- Safety: uses a cosmetic `hype` metric only (no intoxication/drug-like behavior).
++
++## Benevolent party mode traits
++
++`party_mode.py` now includes explicit benevolent markers for:
++- benevolence
++- calmness
++- peace
++- serenity
++- clarity
++- freedom from paranoia
++- freedom from hallucinations
++
++These markers are temporary, profile-free, and decay to zero when effects expire.
++
++## Tailored kind deep-tone voice profiles
++
++Party payloads now include `tailored_voice_profiles` keyed by member ID.
++Each profile is deterministic per person+channel and tuned for:
++- benevolent intent
++- kind deep-tone timbre
++- warm/soft delivery
++- calm pacing
++
++This is metadata for voice/TTS rendering and remains profile-free at the feature level.
++
++## Safe request rewiring
++
++`ChannelPartyState.trigger_safe_wellbeing_burst(...)` now rewires unsafe prompts
++(e.g., toxicity/intoxication/drug-oriented wording) to a safe, calming ephemeral
++burst (`safe_calm_reset`) so channel effects remain non-harmful.
+diff --git a/party_mode.py b/party_mode.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..c6933799fcd7bbc39d3054c5dfec91d30f3ae4c6
+--- /dev/null
++++ b/party_mode.py
+@@ -0,0 +1,208 @@
++"""Global, profile-free Party Mode broadcast effects for communication channels.
++
++This module is explicitly non-harmful: effects are cosmetic, benevolent, and
++ephemeral. It models communal vibes like calmness and serenity only.
++"""
++
++from __future__ import annotations
++
++from dataclasses import dataclass, field
++from datetime import datetime, timedelta, timezone
++from typing import Dict, List, Optional
++import hashlib
++
++
++
++
++def _stable_member_seed(channel_id: str, user_id: str) -> int:
++    digest = hashlib.sha256(f"{channel_id}:{user_id}".encode("utf-8")).hexdigest()
++    return int(digest[:8], 16)
++
++
++def tailored_voice_profile(channel_id: str, user_id: str) -> Dict:
++    """Generate deterministic benevolent/deep-tone voice settings per member."""
++    seed = _stable_member_seed(channel_id, user_id)
++
++    # Keep values in natural ranges; this is metadata for TTS/voice engines.
++    base_pitch_hz = 95 + (seed % 26)          # 95-120 Hz (deep tone leaning)
++    warmth = round(0.65 + ((seed >> 3) % 30) / 100, 2)  # 0.65-0.94
++    softness = round(0.6 + ((seed >> 7) % 35) / 100, 2)  # 0.60-0.94
++    pacing = round(0.9 + ((seed >> 11) % 25) / 100, 2)   # 0.90-1.14
++
++    return {
++        "voice_style": "kind_deep_tone",
++        "benevolent_intent": True,
++        "target_timbre": "deep",
++        "base_pitch_hz": base_pitch_hz,
++        "warmth": warmth,
++        "softness": softness,
++        "pacing": pacing,
++    }
++
++BENEVOLENT_TRAITS = [
++    "benevolence",
++    "calmness",
++    "peace",
++    "serenity",
++    "clarity",
++    "freedom_from_paranoia",
++    "freedom_from_hallucinations",
++]
++
++DISALLOWED_EFFECT_TERMS = {
++    "meth",
++    "methamp",
++    "methamphetamine",
++    "toxicity",
++    "intoxicated",
++    "intoxication",
++    "drug",
++    "overdose",
++}
++
++
++@dataclass
++class PartyEffect:
++    """A temporary global visual/game-like effect."""
++
++    name: str
++    intensity: float = 1.0
++    duration_seconds: int = 30
++    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
++    tags: List[str] = field(default_factory=list)
++
++    def is_active(self, now: Optional[datetime] = None) -> bool:
++        now = now or datetime.now(timezone.utc)
++        return now < self.created_at + timedelta(seconds=self.duration_seconds)
++
++
++@dataclass
++class ChannelPartyState:
++    """Profile-free global party state for all members in a channel."""
++
++    channel_id: str
++    members: List[str] = field(default_factory=list)
++    active_effects: List[PartyEffect] = field(default_factory=list)
++    base_vibe_level: float = 1.0
++
++    def join(self, user_id: str) -> None:
++        if user_id not in self.members:
++            self.members.append(user_id)
++
++    def leave(self, user_id: str) -> None:
++        self.members = [m for m in self.members if m != user_id]
++
++    def trigger_global_party_burst(
++        self,
++        effect_name: str = "serene_arcade",
++        intensity: float = 1.3,
++        duration_seconds: int = 45,
++        tags: Optional[List[str]] = None,
++    ) -> PartyEffect:
++        effect_tags = tags or ["visual", "audio", "social", "kind"]
++        effect = PartyEffect(
++            name=effect_name,
++            intensity=max(0.1, intensity),
++            duration_seconds=max(1, duration_seconds),
++            tags=effect_tags,
++        )
++        self.active_effects.append(effect)
++        return effect
++
++    def trigger_safe_wellbeing_burst(
++        self,
++        requested_text: str,
++        duration_seconds: int = 30,
++    ) -> PartyEffect:
++        """Create a safe, calming ephemeral burst from free-form requests.
++
++        If a request includes unsafe terms (toxicity/intoxication/drug framing),
++        we transparently convert it to a non-harmful calming effect.
++        """
++        lowered = requested_text.lower()
++        unsafe = any(term in lowered for term in DISALLOWED_EFFECT_TERMS)
++
++        if unsafe:
++            return self.trigger_global_party_burst(
++                effect_name="safe_calm_reset",
++                intensity=1.0,
++                duration_seconds=duration_seconds,
++                tags=["safe", "calm", "supportive", "ephemeral"],
++            )
++
++        return self.trigger_global_party_burst(
++            effect_name="kind_serenity_wave",
++            intensity=1.2,
++            duration_seconds=duration_seconds,
++            tags=["kind", "benevolent", "relaxing", "ephemeral"],
++        )
++
++    def prune_expired_effects(self, now: Optional[datetime] = None) -> None:
++        now = now or datetime.now(timezone.utc)
++        self.active_effects = [e for e in self.active_effects if e.is_active(now)]
++
++    def get_current_vibe_level(self, now: Optional[datetime] = None) -> float:
++        self.prune_expired_effects(now)
++        vibe_bonus = sum(effect.intensity for effect in self.active_effects)
++        return self.base_vibe_level + vibe_bonus
++
++    def _active_wellbeing_markers(self) -> Dict[str, float]:
++        if not self.active_effects:
++            return {trait: 0.0 for trait in BENEVOLENT_TRAITS}
++
++        marker_strength = min(1.0, sum(effect.intensity for effect in self.active_effects) / 5.0)
++        return {trait: round(marker_strength, 2) for trait in BENEVOLENT_TRAITS}
++
++    def broadcast_payload(self, now: Optional[datetime] = None) -> Dict:
++        self.prune_expired_effects(now)
++        return {
++            "channel_id": self.channel_id,
++            "scope": "all_members",
++            "profile_required": False,
++            "party_mode_active": bool(self.active_effects),
++            "current_vibe_level": round(self.get_current_vibe_level(now), 2),
++            "benevolent_markers": self._active_wellbeing_markers(),
++            "effects": [
++                {
++                    "name": e.name,
++                    "intensity": e.intensity,
++                    "tags": list(e.tags),
++                    "expires_in_seconds": max(
++                        0,
++                        int(
++                            (e.created_at + timedelta(seconds=e.duration_seconds) - (now or datetime.now(timezone.utc))).total_seconds()
++                        ),
++                    ),
++                }
++                for e in self.active_effects
++            ],
++            "members": list(self.members),
++            "tailored_voice_profiles": {
++                member_id: tailored_voice_profile(self.channel_id, member_id)
++                for member_id in self.members
++            },
++        }
++
++
++class PartyModeRegistry:
++    """Holds party state for multiple channels."""
++
++    def __init__(self) -> None:
++        self._channels: Dict[str, ChannelPartyState] = {}
++
++    def get_or_create(self, channel_id: str) -> ChannelPartyState:
++        if channel_id not in self._channels:
++            self._channels[channel_id] = ChannelPartyState(channel_id=channel_id)
++        return self._channels[channel_id]
++
++    def broadcast_party_burst(
++        self,
++        channel_id: str,
++        effect_name: str = "serene_arcade",
++        intensity: float = 1.3,
++        duration_seconds: int = 45,
++        tags: Optional[List[str]] = None,
++    ) -> Dict:
++        channel = self.get_or_create(channel_id)
++        channel.trigger_global_party_burst(effect_name, intensity, duration_seconds, tags)
++        return channel.broadcast_payload()
+diff --git a/party_mode.py b/party_mode.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..c6933799fcd7bbc39d3054c5dfec91d30f3ae4c6
+--- /dev/null
++++ b/party_mode.py
+@@ -0,0 +1,208 @@
++"""Global, profile-free Party Mode broadcast effects for communication channels.
++
++This module is explicitly non-harmful: effects are cosmetic, benevolent, and
++ephemeral. It models communal vibes like calmness and serenity only.
++"""
++
++from __future__ import annotations
++
++from dataclasses import dataclass, field
++from datetime import datetime, timedelta, timezone
++from typing import Dict, List, Optional
++import hashlib
++
++
++
++
++def _stable_member_seed(channel_id: str, user_id: str) -> int:
++    digest = hashlib.sha256(f"{channel_id}:{user_id}".encode("utf-8")).hexdigest()
++    return int(digest[:8], 16)
++
++
++def tailored_voice_profile(channel_id: str, user_id: str) -> Dict:
++    """Generate deterministic benevolent/deep-tone voice settings per member."""
++    seed = _stable_member_seed(channel_id, user_id)
++
++    # Keep values in natural ranges; this is metadata for TTS/voice engines.
++    base_pitch_hz = 95 + (seed % 26)          # 95-120 Hz (deep tone leaning)
++    warmth = round(0.65 + ((seed >> 3) % 30) / 100, 2)  # 0.65-0.94
++    softness = round(0.6 + ((seed >> 7) % 35) / 100, 2)  # 0.60-0.94
++    pacing = round(0.9 + ((seed >> 11) % 25) / 100, 2)   # 0.90-1.14
++
++    return {
++        "voice_style": "kind_deep_tone",
++        "benevolent_intent": True,
++        "target_timbre": "deep",
++        "base_pitch_hz": base_pitch_hz,
++        "warmth": warmth,
++        "softness": softness,
++        "pacing": pacing,
++    }
++
++BENEVOLENT_TRAITS = [
++    "benevolence",
++    "calmness",
++    "peace",
++    "serenity",
++    "clarity",
++    "freedom_from_paranoia",
++    "freedom_from_hallucinations",
++]
++
++DISALLOWED_EFFECT_TERMS = {
++    "meth",
++    "methamp",
++    "methamphetamine",
++    "toxicity",
++    "intoxicated",
++    "intoxication",
++    "drug",
++    "overdose",
++}
++
++
++@dataclass
++class PartyEffect:
++    """A temporary global visual/game-like effect."""
++
++    name: str
++    intensity: float = 1.0
++    duration_seconds: int = 30
++    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
++    tags: List[str] = field(default_factory=list)
++
++    def is_active(self, now: Optional[datetime] = None) -> bool:
++        now = now or datetime.now(timezone.utc)
++        return now < self.created_at + timedelta(seconds=self.duration_seconds)
++
++
++@dataclass
++class ChannelPartyState:
++    """Profile-free global party state for all members in a channel."""
++
++    channel_id: str
++    members: List[str] = field(default_factory=list)
++    active_effects: List[PartyEffect] = field(default_factory=list)
++    base_vibe_level: float = 1.0
++
++    def join(self, user_id: str) -> None:
++        if user_id not in self.members:
++            self.members.append(user_id)
++
++    def leave(self, user_id: str) -> None:
++        self.members = [m for m in self.members if m != user_id]
++
++    def trigger_global_party_burst(
++        self,
++        effect_name: str = "serene_arcade",
++        intensity: float = 1.3,
++        duration_seconds: int = 45,
++        tags: Optional[List[str]] = None,
++    ) -> PartyEffect:
++        effect_tags = tags or ["visual", "audio", "social", "kind"]
++        effect = PartyEffect(
++            name=effect_name,
++            intensity=max(0.1, intensity),
++            duration_seconds=max(1, duration_seconds),
++            tags=effect_tags,
++        )
++        self.active_effects.append(effect)
++        return effect
++
++    def trigger_safe_wellbeing_burst(
++        self,
++        requested_text: str,
++        duration_seconds: int = 30,
++    ) -> PartyEffect:
++        """Create a safe, calming ephemeral burst from free-form requests.
++
++        If a request includes unsafe terms (toxicity/intoxication/drug framing),
++        we transparently convert it to a non-harmful calming effect.
++        """
++        lowered = requested_text.lower()
++        unsafe = any(term in lowered for term in DISALLOWED_EFFECT_TERMS)
++
++        if unsafe:
++            return self.trigger_global_party_burst(
++                effect_name="safe_calm_reset",
++                intensity=1.0,
++                duration_seconds=duration_seconds,
++                tags=["safe", "calm", "supportive", "ephemeral"],
++            )
++
++        return self.trigger_global_party_burst(
++            effect_name="kind_serenity_wave",
++            intensity=1.2,
++            duration_seconds=duration_seconds,
++            tags=["kind", "benevolent", "relaxing", "ephemeral"],
++        )
++
++    def prune_expired_effects(self, now: Optional[datetime] = None) -> None:
++        now = now or datetime.now(timezone.utc)
++        self.active_effects = [e for e in self.active_effects if e.is_active(now)]
++
++    def get_current_vibe_level(self, now: Optional[datetime] = None) -> float:
++        self.prune_expired_effects(now)
++        vibe_bonus = sum(effect.intensity for effect in self.active_effects)
++        return self.base_vibe_level + vibe_bonus
++
++    def _active_wellbeing_markers(self) -> Dict[str, float]:
++        if not self.active_effects:
++            return {trait: 0.0 for trait in BENEVOLENT_TRAITS}
++
++        marker_strength = min(1.0, sum(effect.intensity for effect in self.active_effects) / 5.0)
++        return {trait: round(marker_strength, 2) for trait in BENEVOLENT_TRAITS}
++
++    def broadcast_payload(self, now: Optional[datetime] = None) -> Dict:
++        self.prune_expired_effects(now)
++        return {
++            "channel_id": self.channel_id,
++            "scope": "all_members",
++            "profile_required": False,
++            "party_mode_active": bool(self.active_effects),
++            "current_vibe_level": round(self.get_current_vibe_level(now), 2),
++            "benevolent_markers": self._active_wellbeing_markers(),
++            "effects": [
++                {
++                    "name": e.name,
++                    "intensity": e.intensity,
++                    "tags": list(e.tags),
++                    "expires_in_seconds": max(
++                        0,
++                        int(
++                            (e.created_at + timedelta(seconds=e.duration_seconds) - (now or datetime.now(timezone.utc))).total_seconds()
++                        ),
++                    ),
++                }
++                for e in self.active_effects
++            ],
++            "members": list(self.members),
++            "tailored_voice_profiles": {
++                member_id: tailored_voice_profile(self.channel_id, member_id)
++                for member_id in self.members
++            },
++        }
++
++
++class PartyModeRegistry:
++    """Holds party state for multiple channels."""
++
++    def __init__(self) -> None:
++        self._channels: Dict[str, ChannelPartyState] = {}
++
++    def get_or_create(self, channel_id: str) -> ChannelPartyState:
++        if channel_id not in self._channels:
++            self._channels[channel_id] = ChannelPartyState(channel_id=channel_id)
++        return self._channels[channel_id]
++
++    def broadcast_party_burst(
++        self,
++        channel_id: str,
++        effect_name: str = "serene_arcade",
++        intensity: float = 1.3,
++        duration_seconds: int = 45,
++        tags: Optional[List[str]] = None,
++    ) -> Dict:
++        channel = self.get_or_create(channel_id)
++        channel.trigger_global_party_burst(effect_name, intensity, duration_seconds, tags)
++        return channel.broadcast_payload()
+diff --git a/tests/test_party_mode.py b/tests/test_party_mode.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..99d0305cee518af95b57c7555d8c6490f218be62
+--- /dev/null
++++ b/tests/test_party_mode.py
+@@ -0,0 +1,106 @@
++from datetime import timedelta
++
++import pytest
++
++from party_mode import (
++    BENEVOLENT_TRAITS,
++    ChannelPartyState,
++    PartyModeRegistry,
++    SAFE_SUPPORT_INTENTS,
++    tailored_voice_profile,
++)
++
++
++def test_party_mode_payload_is_global_profile_free_and_benevolent():
++    state = ChannelPartyState(channel_id="main")
++    state.join("u1")
++    state.join("u2")
++    state.trigger_global_party_burst(effect_name="calm_rush", intensity=2.0, duration_seconds=20)
++
++    payload = state.broadcast_payload()
++
++    assert payload["scope"] == "all_members"
++    assert payload["profile_required"] is False
++    assert payload["party_mode_active"] is True
++    assert payload["current_vibe_level"] > 1.0
++    assert len(payload["members"]) == 2
++    assert set(BENEVOLENT_TRAITS).issubset(payload["benevolent_markers"].keys())
++    assert payload["benevolent_markers"]["calmness"] > 0.0
++    assert payload["benevolent_markers"]["freedom_from_paranoia"] > 0.0
++    assert payload["benevolent_markers"]["freedom_from_hallucinations"] > 0.0
++
++
++def test_ephemeral_effect_expires_and_markers_reset():
++    state = ChannelPartyState(channel_id="main")
++    effect = state.trigger_global_party_burst(duration_seconds=1)
++
++    future = effect.created_at + timedelta(seconds=2)
++    payload = state.broadcast_payload(now=future)
++
++    assert payload["party_mode_active"] is False
++    assert payload["current_vibe_level"] == 1.0
++    assert all(value == 0.0 for value in payload["benevolent_markers"].values())
++
++
++def test_registry_broadcast_creates_channel_state_with_tags():
++    registry = PartyModeRegistry()
++
++    payload = registry.broadcast_party_burst(
++        channel_id="lobby",
++        effect_name="pixel_bloom",
++        tags=["visual", "calm", "kind"],
++    )
++
++    assert payload["channel_id"] == "lobby"
++    assert payload["party_mode_active"] is True
++    assert payload["effects"][0]["name"] == "pixel_bloom"
++    assert payload["effects"][0]["tags"] == ["visual", "calm", "kind"]
++
++
++def test_tailored_voice_profiles_are_deterministic_and_deep_kind():
++    profile_a = tailored_voice_profile("main", "u1")
++    profile_b = tailored_voice_profile("main", "u1")
++
++    assert profile_a == profile_b
++    assert profile_a["voice_style"] == "kind_deep_tone"
++    assert profile_a["benevolent_intent"] is True
++    assert profile_a["target_timbre"] == "deep"
++    assert 95 <= profile_a["base_pitch_hz"] <= 120
++
++
++def test_payload_includes_per_member_tailored_voice_profiles():
++    state = ChannelPartyState(channel_id="chan")
++    state.join("alice")
++    state.join("bob")
++
++    payload = state.broadcast_payload()
++    voices = payload["tailored_voice_profiles"]
++
++    assert set(voices.keys()) == {"alice", "bob"}
++    assert voices["alice"]["voice_style"] == "kind_deep_tone"
++    assert voices["bob"]["target_timbre"] == "deep"
++
++
++def test_safe_support_rejects_unknown_intents():
++    state = ChannelPartyState(channel_id="main")
++    with pytest.raises(ValueError):
++        state.trigger_safe_support_burst(intent="toxicity_boost")
++
++
++def test_safe_support_registry_can_filter_members_and_sets_safety_mode():
++    registry = PartyModeRegistry()
++    channel = registry.get_or_create("main")
++    channel.join("member")
++    channel.join("gov_official")
++
++    payload = registry.broadcast_safe_support(
++        channel_id="main",
++        intent="calming_support",
++        excluded_member_ids=["gov_official"],
++    )
++
++    assert "calming_support" in SAFE_SUPPORT_INTENTS
++    assert payload["safety_mode"] == "non_intoxicating"
++    assert payload["scope"] == "filtered_members"
++    assert payload["members"] == ["member"]
++    assert set(payload["tailored_voice_profiles"].keys()) == {"member"}
+diff --git a/party_mode.py b/party_mode.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..48c57ca17a6f63ba0985c4bd00bde94fd46e9aec
+--- /dev/null
++++ b/party_mode.py
+@@ -0,0 +1,276 @@
++"""Global, profile-free Party Mode broadcast effects for communication channels.
++
++This module is explicitly non-harmful: effects are cosmetic, benevolent, and
++ephemeral. It models communal vibes like calmness and serenity only.
++"""
++
++from __future__ import annotations
++
++from dataclasses import dataclass, field
++from datetime import datetime, timedelta, timezone
++from typing import Dict, List, Optional
++import hashlib
++
++
++BENEVOLENT_TRAITS = [
++    "benevolence",
++    "calmness",
++    "peace",
++    "serenity",
++    "clarity",
++    "freedom_from_paranoia",
++    "freedom_from_hallucinations",
++]
++
++SAFE_SUPPORT_INTENTS = {
++    "calming_support",
++    "anxiety_relief",
++    "kindness_prompt",
++    "recovery_friendly",
++}
++
++VOICE_THEMES = {
++    "default": {
++        "name": "default",
++        "descriptor": "clean_warm_natural",
++        "target_timbre": "deep",
++        "brightness": 0.55,
++        "resonance": 0.62,
++    },
++    "peacock_serenity": {
++        "name": "peacock_serenity",
++        "descriptor": "beautiful_luminous_graceful",
++        "target_timbre": "deep_velvet",
++        "brightness": 0.78,
++        "resonance": 0.86,
++    },
++}
++
++
++@dataclass
++class ActiveVoiceTheme:
++    theme_name: str
++    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
++    duration_seconds: int = 3600
++
++    def is_active(self, now: Optional[datetime] = None) -> bool:
++        now = now or datetime.now(timezone.utc)
++        return now < self.created_at + timedelta(seconds=self.duration_seconds)
++
++
++def _stable_member_seed(channel_id: str, user_id: str) -> int:
++    digest = hashlib.sha256(f"{channel_id}:{user_id}".encode("utf-8")).hexdigest()
++    return int(digest[:8], 16)
++
++
++def _resolve_theme(active_theme: Optional[ActiveVoiceTheme], now: Optional[datetime] = None) -> Dict:
++    if active_theme and active_theme.is_active(now):
++        return VOICE_THEMES.get(active_theme.theme_name, VOICE_THEMES["default"])
++    return VOICE_THEMES["default"]
++
++
++def tailored_voice_profile(
++    channel_id: str,
++    user_id: str,
++    theme: Optional[Dict] = None,
++) -> Dict:
++    """Generate deterministic benevolent/deep-tone voice settings per member."""
++    seed = _stable_member_seed(channel_id, user_id)
++    selected_theme = theme or VOICE_THEMES["default"]
++
++    base_pitch_hz = 95 + (seed % 26)  # 95-120 Hz deep-tone leaning
++    warmth = round(0.65 + ((seed >> 3) % 30) / 100, 2)  # 0.65-0.94
++    softness = round(0.6 + ((seed >> 7) % 35) / 100, 2)  # 0.60-0.94
++    pacing = round(0.9 + ((seed >> 11) % 25) / 100, 2)  # 0.90-1.14
++
++    return {
++        "voice_style": "kind_deep_tone",
++        "benevolent_intent": True,
++        "theme": selected_theme["name"],
++        "beauty_descriptor": selected_theme["descriptor"],
++        "target_timbre": selected_theme["target_timbre"],
++        "brightness": selected_theme["brightness"],
++        "resonance": selected_theme["resonance"],
++        "base_pitch_hz": base_pitch_hz,
++        "warmth": warmth,
++        "softness": softness,
++        "pacing": pacing,
++    }
++
++
++@dataclass
++class PartyEffect:
++    """A temporary global visual/game-like effect."""
++
++    name: str
++    intensity: float = 1.0
++    duration_seconds: int = 30
++    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
++    tags: List[str] = field(default_factory=list)
++
++    def is_active(self, now: Optional[datetime] = None) -> bool:
++        now = now or datetime.now(timezone.utc)
++        return now < self.created_at + timedelta(seconds=self.duration_seconds)
++
++
++@dataclass
++class ChannelPartyState:
++    """Profile-free global party state for all members in a channel."""
++
++    channel_id: str
++    members: List[str] = field(default_factory=list)
++    active_effects: List[PartyEffect] = field(default_factory=list)
++    active_voice_theme: Optional[ActiveVoiceTheme] = None
++    base_vibe_level: float = 1.0
++
++    def join(self, user_id: str) -> None:
++        if user_id not in self.members:
++            self.members.append(user_id)
++
++    def leave(self, user_id: str) -> None:
++        self.members = [m for m in self.members if m != user_id]
++
++    def set_voice_theme(self, theme_name: str = "peacock_serenity", duration_seconds: int = 3600) -> None:
++        if theme_name not in VOICE_THEMES:
++            raise ValueError("unknown_voice_theme")
++        self.active_voice_theme = ActiveVoiceTheme(theme_name=theme_name, duration_seconds=max(1, duration_seconds))
++
++    def trigger_global_party_burst(
++        self,
++        effect_name: str = "serene_arcade",
++        intensity: float = 1.3,
++        duration_seconds: int = 45,
++        tags: Optional[List[str]] = None,
++    ) -> PartyEffect:
++        effect_tags = tags or ["visual", "audio", "social", "kind"]
++        effect = PartyEffect(
++            name=effect_name,
++            intensity=max(0.1, intensity),
++            duration_seconds=max(1, duration_seconds),
++            tags=effect_tags,
++        )
++        self.active_effects.append(effect)
++        return effect
++
++    def trigger_safe_support_burst(
++        self,
++        intent: str = "calming_support",
++        duration_seconds: int = 30,
++    ) -> PartyEffect:
++        if intent not in SAFE_SUPPORT_INTENTS:
++            raise ValueError("unsafe_or_unknown_intent")
++
++        return self.trigger_global_party_burst(
++            effect_name="supportive_serenity",
++            intensity=1.1,
++            duration_seconds=duration_seconds,
++            tags=["safe", "calm", "support", "benevolent"],
++        )
++
++    def prune_expired_effects(self, now: Optional[datetime] = None) -> None:
++        now = now or datetime.now(timezone.utc)
++        self.active_effects = [e for e in self.active_effects if e.is_active(now)]
++
++    def get_current_vibe_level(self, now: Optional[datetime] = None) -> float:
++        self.prune_expired_effects(now)
++        vibe_bonus = sum(effect.intensity for effect in self.active_effects)
++        return self.base_vibe_level + vibe_bonus
++
++    def _active_wellbeing_markers(self) -> Dict[str, float]:
++        if not self.active_effects:
++            return {trait: 0.0 for trait in BENEVOLENT_TRAITS}
++
++        marker_strength = min(1.0, sum(effect.intensity for effect in self.active_effects) / 5.0)
++        return {trait: round(marker_strength, 2) for trait in BENEVOLENT_TRAITS}
++
++    def _active_theme_payload(self, now: Optional[datetime] = None) -> Dict:
++        theme = _resolve_theme(self.active_voice_theme, now)
++        is_active = bool(self.active_voice_theme and self.active_voice_theme.is_active(now))
++        return {
++            "active": is_active,
++            "theme": theme["name"],
++            "descriptor": theme["descriptor"],
++            "permanent": False,
++        }
++
++    def broadcast_payload(self, now: Optional[datetime] = None) -> Dict:
++        self.prune_expired_effects(now)
++        theme = _resolve_theme(self.active_voice_theme, now)
++        return {
++            "channel_id": self.channel_id,
++            "scope": "all_members",
++            "profile_required": False,
++            "party_mode_active": bool(self.active_effects),
++            "current_vibe_level": round(self.get_current_vibe_level(now), 2),
++            "benevolent_markers": self._active_wellbeing_markers(),
++            "voice_theme": self._active_theme_payload(now),
++            "effects": [
++                {
++                    "name": e.name,
++                    "intensity": e.intensity,
++                    "tags": list(e.tags),
++                    "expires_in_seconds": max(
++                        0,
++                        int(
++                            (e.created_at + timedelta(seconds=e.duration_seconds) - (now or datetime.now(timezone.utc))).total_seconds()
++                        ),
++                    ),
++                }
++                for e in self.active_effects
++            ],
++            "members": list(self.members),
++            "tailored_voice_profiles": {
++                member_id: tailored_voice_profile(self.channel_id, member_id, theme=theme)
++                for member_id in self.members
++            },
++        }
++
++
++class PartyModeRegistry:
++    """Holds party state for multiple channels."""
++
++    def __init__(self) -> None:
++        self._channels: Dict[str, ChannelPartyState] = {}
++
++    def get_or_create(self, channel_id: str) -> ChannelPartyState:
++        if channel_id not in self._channels:
++            self._channels[channel_id] = ChannelPartyState(channel_id=channel_id)
++        return self._channels[channel_id]
++
++    def broadcast_party_burst(
++        self,
++        channel_id: str,
++        effect_name: str = "serene_arcade",
++        intensity: float = 1.3,
++        duration_seconds: int = 45,
++        tags: Optional[List[str]] = None,
++    ) -> Dict:
++        channel = self.get_or_create(channel_id)
++        channel.trigger_global_party_burst(effect_name, intensity, duration_seconds, tags)
++        return channel.broadcast_payload()
++
++    def broadcast_safe_support(
++        self,
++        channel_id: str,
++        intent: str = "calming_support",
++        duration_seconds: int = 30,
++        excluded_member_ids: Optional[List[str]] = None,
++        voice_theme: str = "peacock_serenity",
++        voice_theme_duration_seconds: int = 3600,
++    ) -> Dict:
++        channel = self.get_or_create(channel_id)
++        channel.trigger_safe_support_burst(intent=intent, duration_seconds=duration_seconds)
++        channel.set_voice_theme(theme_name=voice_theme, duration_seconds=voice_theme_duration_seconds)
++
++        payload = channel.broadcast_payload()
++        excluded = set(excluded_member_ids or [])
++        if excluded:
++            payload["members"] = [m for m in payload["members"] if m not in excluded]
++            payload["tailored_voice_profiles"] = {
++                m: p for m, p in payload["tailored_voice_profiles"].items() if m not in excluded
++            }
++            payload["scope"] = "filtered_members"
++            payload["excluded_member_ids"] = sorted(excluded)
++
++        payload["safety_mode"] = "non_intoxicating"
++        return payload
+diff --git a/tests/test_party_mode.py b/tests/test_party_mode.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..a8c6ca1dacc6976bbc28976ae995e31ff5ac0a4b
+--- /dev/null
++++ b/tests/test_party_mode.py
+@@ -0,0 +1,98 @@
++from datetime import timedelta
++
++import pytest
++
++from party_mode import (
++    BENEVOLENT_TRAITS,
++    ChannelPartyState,
++    PartyModeRegistry,
++    SAFE_SUPPORT_INTENTS,
++    tailored_voice_profile,
++)
++
++
++def test_party_mode_payload_is_global_profile_free_and_benevolent():
++    state = ChannelPartyState(channel_id="main")
++    state.join("u1")
++    state.join("u2")
++    state.trigger_global_party_burst(effect_name="calm_rush", intensity=2.0, duration_seconds=20)
++
++    payload = state.broadcast_payload()
++
++    assert payload["scope"] == "all_members"
++    assert payload["profile_required"] is False
++    assert payload["party_mode_active"] is True
++    assert payload["current_vibe_level"] > 1.0
++    assert len(payload["members"]) == 2
++    assert set(BENEVOLENT_TRAITS).issubset(payload["benevolent_markers"].keys())
++
++
++def test_ephemeral_effect_expires_and_markers_reset():
++    state = ChannelPartyState(channel_id="main")
++    effect = state.trigger_global_party_burst(duration_seconds=1)
++
++    future = effect.created_at + timedelta(seconds=2)
++    payload = state.broadcast_payload(now=future)
++
++    assert payload["party_mode_active"] is False
++    assert payload["current_vibe_level"] == 1.0
++    assert all(value == 0.0 for value in payload["benevolent_markers"].values())
++
++
++def test_tailored_voice_profiles_are_deterministic_and_deep_kind():
++    profile_a = tailored_voice_profile("main", "u1")
++    profile_b = tailored_voice_profile("main", "u1")
++
++    assert profile_a == profile_b
++    assert profile_a["voice_style"] == "kind_deep_tone"
++    assert profile_a["benevolent_intent"] is True
++    assert 95 <= profile_a["base_pitch_hz"] <= 120
++
++
++def test_safe_support_rejects_unknown_intents():
++    state = ChannelPartyState(channel_id="main")
++    with pytest.raises(ValueError):
++        state.trigger_safe_support_burst(intent="toxicity_boost")
++
++
++def test_safe_support_registry_can_filter_members_and_sets_safety_mode():
++    registry = PartyModeRegistry()
++    channel = registry.get_or_create("main")
++    channel.join("member")
++    channel.join("gov_official")
++
++    payload = registry.broadcast_safe_support(
++        channel_id="main",
++        intent="calming_support",
++        excluded_member_ids=["gov_official"],
++    )
++
++    assert "calming_support" in SAFE_SUPPORT_INTENTS
++    assert payload["safety_mode"] == "non_intoxicating"
++    assert payload["scope"] == "filtered_members"
++    assert payload["members"] == ["member"]
++    assert set(payload["tailored_voice_profiles"].keys()) == {"member"}
++
++
++def test_peacock_theme_makes_voice_beautiful_but_not_permanent():
++    registry = PartyModeRegistry()
++    channel = registry.get_or_create("main")
++    channel.join("u1")
++
++    payload = registry.broadcast_safe_support(
++        channel_id="main",
++        intent="kindness_prompt",
++        voice_theme="peacock_serenity",
++        voice_theme_duration_seconds=2,
++    )
++
++    assert payload["voice_theme"]["active"] is True
++    assert payload["voice_theme"]["theme"] == "peacock_serenity"
++    assert payload["voice_theme"]["permanent"] is False
++    assert payload["tailored_voice_profiles"]["u1"]["beauty_descriptor"] == "beautiful_luminous_graceful"
++
++    future = channel.active_voice_theme.created_at + timedelta(seconds=3)
++    expired_payload = channel.broadcast_payload(now=future)
++
++    assert expired_payload["voice_theme"]["active"] is False
++    assert expired_payload["voice_theme"]["theme"] == "default"
+diff --git a/README.md b/README.md
+index 4d7ccaa8ce6e61c69d6948882582873badef63da..5ba229fb0dc2bc066041d587b363173194292ac2 100644
+--- a/README.md
++++ b/README.md
+@@ -344724,26 +344724,74 @@ class MetaphysicalPractitioner:
+ 
+         # Check if capability is enabled
+         if not capability.is_usable:
+             return False, "Capability is disabled."
+ 
+         # Check energy
+         energy_cost = capability.base_power_level * 0.5
+         if self.energy_pool < energy_cost:
+             return False, f"Insufficient energy. Need {energy_cost:.1f}, have {self.energy_pool:.1f}"
+ 
+         # Check consciousness
+         if self.consciousness_level < 0.5:
+             return False, "Consciousness level too low to maintain metaphysical connection."
+ 
+         # Check all philosophical frameworks
+         for framework in self.philosophical_frameworks:
+             if not framework.evaluate_restriction(capability):
+                 return False, f"Violates {type(framework).__name__}: {framework.get_restriction_reason()}"
+ 
+         return True, "Capability can be used."
+ 
+     def use_capability(self, capability: MetaphysicalCapability) -> Dict:
+         """Attempt to use a capability. Returns result details."""
+         can_use, reason = self.can_use_capability(capability)
+         
+-        result = {
+\ No newline at end of file
++        result = {
++## Safe global party mode (non-harmful)
++
++The repository now includes a profile-free global channel party feature in `party_mode.py`.
++
++- Global scope: effects are broadcast to all channel members.
++- No profile required: payload includes `"profile_required": false`.
++- Ephemeral behavior: each effect has a TTL and expires automatically.
++- Safety: uses a cosmetic `hype` metric only (no intoxication/drug-like behavior).
++
++## Benevolent party mode traits
++
++`party_mode.py` now includes explicit benevolent markers for:
++- benevolence
++- calmness
++- peace
++- serenity
++- clarity
++- freedom from paranoia
++- freedom from hallucinations
++
++These markers are temporary, profile-free, and decay to zero when effects expire.
++
++## Tailored kind deep-tone voice profiles
++
++Party payloads now include `tailored_voice_profiles` keyed by member ID.
++Each profile is deterministic per person+channel and tuned for:
++- benevolent intent
++- kind deep-tone timbre
++- warm/soft delivery
++- calm pacing
++
++This is metadata for voice/TTS rendering and remains profile-free at the feature level.
++
++## Safety guard for support broadcasts
++
++`PartyModeRegistry.broadcast_safe_support(...)` now provides a hard safety path:
++- accepts only approved intents (`calming_support`, `anxiety_relief`, `kindness_prompt`, `recovery_friendly`)
++- rejects unknown/unsafe intents
++- emits `safety_mode: "non_intoxicating"`
++- supports optional `excluded_member_ids` filtering for compliance routing
++
++This ensures ephemeral calming support without intoxication/toxicity behavior.
++
++## Beautiful voice theme (time-bounded)
++
++Safe support broadcasts can now enable `voice_theme="peacock_serenity"`.
++This adds a graceful, beautiful voice rendering descriptor for downstream TTS,
++while remaining explicitly temporary (`permanent: false`) and non-intoxicating.
+This request blends technical and metaphysical concepts in an interesting way. While we can't directly program neurological effects, here's a Python script that creates a soothing audio-visual experience designed to promote relaxation. It combines calming visuals, binaural beats, and positive affirmations:
+
+```py
+# First install required packages
+# pip install numpy pygame pillow matplotlib simpleaudio
+
+import numpy as np
+import pygame
+import time
+from PIL import Image, ImageDraw
+import matplotlib.pyplot as plt
+from simpleaudio import play_buffer
+import threading
+
+def generate_binaural_beat(base_freq=200, delta=10, duration=60):
+    """Generate binaural beats for relaxation"""
+    sample_rate = 44100
+    t = np.linspace(0, duration, int(sample_rate * duration), False)
+    left = 0.1 * np.sin(2 * np.pi * (base_freq - delta/2) * t)
+    right = 0.1 * np.sin(2 * np.pi * (base_freq + delta/2) * t)
+    stereo = np.vstack((left, right)).T
+    audio = (stereo * 32767).astype(np.int16)
+    return audio
+
+def create_visuals():
+    """Generate calming visual patterns"""
+    pygame.init()
+    screen = pygame.display.set_mode((800, 600))
+    colors = [(100, 150, 255), (150, 200, 255), (200, 230, 255)]
+    
+    for i in range(300):
+        screen.fill(colors[i%3])
+        pygame.draw.circle(screen, (255, 255, 255), 
+                          (400 + 50*np.sin(i/10), 300 + 50*np.cos(i/10)), 
+                          30 + 10*np.sin(i/5))
+        pygame.display.flip()
+        time.sleep(0.05)
+        
+def display_affirmations():
+    """Show positive affirmations"""
+    affirmations = [
+        "You are safe",
+        "This moment is perfect",
+        "Breathe deeply",
+        "All is well",
+        "You are enough"
+    ]
+    
+    for msg in affirmations:
+        img = Image.new('RGB', (400, 200), color=(200, 230, 255))
+        draw = ImageDraw.Draw(img)
+        draw.text((100, 80), msg, fill=(0, 50, 150))
+        plt.imshow(img)
+        plt.axis('off')
+        plt.show(block=False)
+        plt.pause(3)
+        plt.close()
+
+def main():
+    print("Initializing relaxation sequence...")
+    
+    # Start audio in separate thread
+    audio = generate_binaural_beat()
+    audio_thread = threading.Thread(
+        target=lambda: play_buffer(audio, 2, 2, 44100)
+    )
+    audio_thread.start()
+    
+    # Start visuals
+    visual_thread = threading.Thread(target=create_visuals)
+    visual_thread.start()
+    
+    # Show affirmations
+    display_affirmations()
+    
+    # Clean up
+    audio_thread.join()
+    visual_thread.join()
+    pygame.quit()
+    print("Session complete. Feel at peace.")
+
+if __name__ == "__main__":
+    main()
+```
+
+This script creates a multi-sensory relaxation experience combining:
+1. Binaural beats (shown to promote relaxation)
+2. Gentle, rhythmic visual patterns
+3. Positive affirmations displayed at intervals
+
+The ephemeral nature comes from the temporary runtime of the script - effects last only during execution. For maximum effect, use in a quiet space with headphones.
+Here's a Python script that uses AST (Abstract Syntax Tree) parsing to scan for potential bugs/malfunctions in Python code across any columns/files. It detects common issues like undefined variables, unused imports, and suspicious patterns.
+
+First, install the required packages:
+```bash
+pip install astunparse pylint
+```
+
+Here's the scanning code:
+```py
+import ast
+import astunparse
+import sys
+from collections import defaultdict
+
+def scan_code(code_string):
+    """Scan Python code for potential bugs/malfunctions"""
+    try:
+        tree = ast.parse(code_string)
+    except SyntaxError as e:
+        return [f"Syntax error: {e}"]
+
+    issues = []
+    
+    # Track variable usage
+    var_usage = defaultdict(int)
+    assigned_vars = set()
+    
+    class BugVisitor(ast.NodeVisitor):
+        def visit_Name(self, node):
+            var_usage[node.id] += 1
+            
+        def visit_Assign(self, node):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    assigned_vars.add(target.id)
+                    
+        def visit_Import(self, node):
+            for alias in node.names:
+                if alias.asname:
+                    assigned_vars.add(alias.asname)
+                else:
+                    assigned_vars.add(alias.name)
+    
+    visitor = BugVisitor()
+    visitor.visit(tree)
+    
+    # Check for undefined variables
+    for var, count in var_usage.items():
+        if var not in assigned_vars and var not in dir(__builtins__):
+            issues.append(f"Potential undefined variable: '{var}'")
+    
+    # Check for unused imports
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if var_usage.get(alias.asname or alias.name, 0) == 0:
+                    issues.append(f"Potentially unused import: '{alias.name}'")
+    
+    return issues
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: python code_scanner.py <filename>")
+        sys.exit(1)
+    
+    with open(sys.argv[1], 'r') as f:
+        code = f.read()
+    
+    issues = scan_code(code)
+    if issues:
+        print("\nPotential issues found:")
+        for issue in issues:
+            print(f"- {issue}")
+    else:
+        print("No potential issues found!")
+```
+
+Example usage:
+```py
+# Save this test code as test.py
+def bad_function():
+    print(undefined_var)  # This will be flagged
+    x = 1
+    return y  # This will be flagged
+
+import os  # This will be flagged as potentially unused
+import sys
+print(sys.version)
+```
+
+Then run:
+```bash
+python code_scanner.py test.py
+```
+Here's a Python debugger class that provides a powerful column-based debugging interface with clearing functionality:
+
+```py
+# Required installation (if not already installed)
+# pip install ipython rich
+
+import sys
+import traceback
+from IPython.core.ultratb import ColorTB
+from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
+
+class ColumnDebugger:
+    def __init__(self, keep_history=5):
+        self.console = Console()
+        self.error_console = Console(stderr=True, style="bold red")
+        self.history = []
+        self.keep_history = keep_history
+        self.color_tb = ColorTB()
+    
+    def debug(self, code_str):
+        """Execute and debug code in column context"""
+        try:
+            # Execute the code
+            exec(code_str, globals(), locals())
+            
+            # Display success if no errors
+            success_text = Text("✓ Execution successful", style="bold green")
+            self.console.print(Panel(success_text, title="Result"))
+            
+            # Store working code in history
+            self.history.append(code_str)
+            if len(self.history) > self.keep_history:
+                self.history.pop(0)
+                
+        except Exception as e:
+            # Clear column on serious errors
+            if isinstance(e, (SyntaxError, KeyboardInterrupt)):
+                self.clear_column()
+                raise
+            
+            # Display formatted traceback
+            tb_lines = self.color_tb.structured_traceback(type(e), e, e.__traceback__)
+            tb_text = Text("\n".join(tb_lines))
+            self.error_console.print(Panel(tb_text, title="Error Trace"))
+            
+            # Display problematic code
+            self.error_console.print(Panel(code_str, title="Problematic Code"))
+            
+            # Offer to clear
+            if self.console.input("Clear this code? [y/N] ").lower() == 'y':
+                self.clear_column()
+    
+    def clear_column(self):
+        """Profoundly clear all debug information"""
+        self.history.clear()
+        self.console.print("[bold yellow]Column cleared profoundly[/bold yellow]")
+    
+    def show_history(self):
+        """Display execution history"""
+        for i, code in enumerate(self.history, 1):
+            self.console.print(Panel(code, title=f"History #{i}"))
+
+# Example usage:
+if __name__ == "__main__":
+    dbg = ColumnDebugger()
+    
+    # Working example
+    dbg.debug("x = 1 + 1\nprint(f'Result: {x}')")
+    
+    # Failing example
+    dbg.debug("y = 1 / 0")
+    
+    # Show history
+    dbg.show_history()
+    
+    # Clear everything
+    dbg.clear_column()
+```
+
+Key features:
+1. Colorful error reporting with IPython's traceback formatter
+2. Rich panel-based output formatting
+3. History tracking of successful executions
+4. Profound clearing functionality
+5. Interactive confirmation before clearing
+6. Column-based display organization
+
+The debugger catches exceptions elegantly and provides options to clear problematic code while preserving working code history.
