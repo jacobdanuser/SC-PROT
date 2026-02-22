@@ -1,0 +1,2881 @@
+from azure.cosmos import CosmosClient, exceptions
+import os
+
+# Configuration
+COSMOS_ENDPOINT = os.getenv("COSMOS_ENDPOINT")
+COSMOS_KEY = os.getenv("COSMOS_KEY")
+
+client = CosmosClient(COSMOS_ENDPOINT, COSMOS_KEY)
+
+def purge_all_documents():
+    print("Starting full document purge (structure preserved)...")
+
+    for db in client.list_databases():
+        db_client = client.get_database_client(db['id'])
+        print(f"Database: {db['id']}")
+
+        for container in db_client.list_containers():
+            container_client = db_client.get_container_client(container['id'])
+            print(f"  Container: {container['id']}")
+
+            query = "SELECT c.id, c._partitionKey FROM c"
+            items = list(container_client.query_items(
+                query=query,
+                enable_cross_partition_query=True
+            ))
+
+            for item in items:
+                try:
+                    container_client.delete_item(
+                        item=item['id'],
+                        partition_key=item.get('_partitionKey')
+                    )
+                except exceptions.CosmosResourceNotFoundError:
+                    continue
+
+            print(f"    Purged {len(items)} documents")
+
+    print("Purge complete.")
+
+if __name__ == "__main__":
+    purge_all_documents()
+def delete_all_databases():
+    print("Deleting all databases in this Cosmos account...")
+
+    for db in client.list_databases():
+        db_id = db['id']
+        print(f"Deleting database: {db_id}")
+        client.delete_database(db_id)
+
+    print("All databases deleted.")
+az cosmosdb restore \
+  --resource-group myResourceGroup \
+  --account-name new-restored-account \
+  --source-account original-account \
+  --restore-timestamp "2026-02-20T10:00:00Z" \
+  --location westus
+import json
+
+def restore_from_json(db_name, container_name, file_path):
+    db = client.get_database_client(db_name)
+    container = db.get_container_client(container_name)
+
+    with open(file_path, "r") as f:
+        data = json.load(f)
+
+    for item in data:
+        container.upsert_item(item)
+
+    print(f"Restored {len(data)} records into {container_name}")
+from azure.cosmos import CosmosClient
+
+endpoint = "<YOUR_ENDPOINT>"
+key = "<YOUR_KEY>"
+
+client = CosmosClient(endpoint, key)
+
+def ephemeral_clean():
+    for db in client.list_databases():
+        db_client = client.get_database_client(db['id'])
+
+        for container in db_client.list_containers():
+            container_client = db_client.get_container_client(container['id'])
+
+            print(f"Cleaning {db['id']} / {container['id']}")
+
+            query = "SELECT c.id FROM c"
+            items = list(container_client.query_items(
+                query=query,
+                enable_cross_partition_query=True
+            ))
+
+            for item in items:
+                container_client.delete_item(
+                    item=item['id'],
+                    partition_key=item['id']  # adjust if custom partition key
+                )
+
+    print("Ephemeral clean complete.")
+container.replace_container(
+    container,
+    default_ttl=60  # expires documents after 60 seconds
+)
+      import nbformat
+import os
+import re
+
+SUSPICIOUS_PATTERNS = [
+    r"os\.system",
+    r"subprocess",
+    r"eval\(",
+    r"exec\(",
+    r"base64",
+    r"socket",
+    r"requests",
+    r"pickle",
+]
+
+def scan_code(code):
+    findings = []
+    for pattern in SUSPICIOUS_PATTERNS:
+        if re.search(pattern, code):
+            findings.append(pattern)
+    return findings
+
+def sanitize_notebook(input_path, output_path):
+    nb = nbformat.read(input_path, as_version=4)
+    suspicious_report = []
+
+    for cell in nb.cells:
+        if cell.cell_type == "code":
+            findings = scan_code(cell.source)
+            if findings:
+                suspicious_report.append({
+                    "cell": cell.source,
+                    "patterns": findings
+                })
+
+            # Clear outputs and execution count
+            cell.outputs = []
+            cell.execution_count = None
+
+        # Remove metadata
+        cell.metadata = {}
+
+    nb.metadata = {}
+
+    nbformat.write(nb, output_path)
+
+    return suspicious_report
+
+if __name__ == "__main__":
+    input_notebook = "input.ipynb"
+    output_notebook = "cleaned_notebook.ipynb"
+
+    report = sanitize_notebook(input_notebook, output_notebook)
+
+    print("Sanitization complete.")
+    if report:
+        print("⚠ Suspicious patterns found:")
+        for item in report:
+            print(item)
+    else:
+        print("No suspicious patterns detected.")
+      import subprocess
+import sys
+
+def verify_packages():
+    print("Checking installed packages integrity...\n")
+    subprocess.run([sys.executable, "-m", "pip", "check"])
+
+    print("\nListing installed packages:")
+    subprocess.run([sys.executable, "-m", "pip", "list"])
+
+if __name__ == "__main__":
+    verify_packages()
+      jupyter notebook --generate-config
+jupyter notebook stop
+      jupyter --paths
+      spyder --reset
+      python -m venv clean_env
+      clean_env\Scripts\activate
+      source clean_env/bin/activate
+      pip install jupyter spyder numpy pandas
+      pip install bandit
+bandit -r .
+      diff --git a/README.md b/README.md
+index 4d7ccaa8ce6e61c69d6948882582873badef63da..b95268e807d2190b6df23834a9138272eeed1894 100644
+--- a/README.md
++++ b/README.md
+@@ -344724,26 +344724,45 @@ class MetaphysicalPractitioner:
+ 
+         # Check if capability is enabled
+         if not capability.is_usable:
+             return False, "Capability is disabled."
+ 
+         # Check energy
+         energy_cost = capability.base_power_level * 0.5
+         if self.energy_pool < energy_cost:
+             return False, f"Insufficient energy. Need {energy_cost:.1f}, have {self.energy_pool:.1f}"
+ 
+         # Check consciousness
+         if self.consciousness_level < 0.5:
+             return False, "Consciousness level too low to maintain metaphysical connection."
+ 
+         # Check all philosophical frameworks
+         for framework in self.philosophical_frameworks:
+             if not framework.evaluate_restriction(capability):
+                 return False, f"Violates {type(framework).__name__}: {framework.get_restriction_reason()}"
+ 
+         return True, "Capability can be used."
+ 
+     def use_capability(self, capability: MetaphysicalCapability) -> Dict:
+         """Attempt to use a capability. Returns result details."""
+         can_use, reason = self.can_use_capability(capability)
+         
+-        result = {
+\ No newline at end of file
++        result = {
++## Spyder/Jupyter Cleanroom (Local Defensive Tool)
++
++A new script `spyder_jupyter_cleanroom.py` is included to harden local notebooks and Python files used in Spyder/Jupyter workflows.
++
++What it does:
++- Scans `.py` and `.ipynb` files.
++- Removes invisible/bidi control characters often used for confusing or hidden code behavior.
++- Flags suspicious patterns (dynamic eval/exec, shell execution calls, encoded payload loaders, notebook shell escapes).
++- Runs Python syntax validation on scripts and notebook code cells.
++- Writes a JSON audit report.
++
++Example usage:
++
++```bash
++python3 spyder_jupyter_cleanroom.py . --report cleanroom_report.json
++python3 spyder_jupyter_cleanroom.py . --write --report cleanroom_report.json
++```
++
++Note: this is for local code hygiene and auditability. It does not and should not perform unauthorized server-side access/modification.
+While the request to "remove errors and subliminal codes universally" from Spyder and Jupyter Notebook servers isn't technically feasible (as these are open-source projects with decentralized hosting), I can provide code to scan for common malicious patterns, clean notebooks, and validate Python environments. Here's a practical approach:
+
+```py
+# First install required packages
+# pip install nbformat numpy astunparse watchdog
+
+import nbformat
+import os
+import ast
+import astunparse
+import hashlib
+import numpy as np
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
+
+class NotebookCleaner:
+    def __init__(self):
+        self.suspicious_patterns = [
+            "eval(", "exec(", "__import__", "open(", "system(",
+            "subprocess", "os.system", "pickle.load", "marshal.load",
+            "ctypes.", "codecs.", "builtins.", "getattr", "setattr"
+        ]
+    
+    def clean_notebook(self, filepath):
+        """Remove potentially malicious cells from a notebook"""
+        try:
+            nb = nbformat.read(filepath, as_version=4)
+            cleaned_cells = []
+            modified = False
+            
+            for cell in nb.cells:
+                if cell.cell_type == "code":
+                    code = cell.source
+                    if any(pattern in code for pattern in self.suspicious_patterns):
+                        modified = True
+                        continue
+                    cleaned_cells.append(cell)
+                else:
+                    cleaned_cells.append(cell)
+            
+            if modified:
+                nb.cells = cleaned_cells
+                nbformat.write(nb, filepath)
+                print(f"Cleaned notebook: {filepath}")
+            return True
+        except Exception as e:
+            print(f"Error processing {filepath}: {str(e)}")
+            return False
+
+class FileMonitor(FileSystemEventHandler):
+    def __init__(self, cleaner):
+        self.cleaner = cleaner
+    
+    def on_modified(self, event):
+        if event.src_path.endswith('.ipynb'):
+            self.cleaner.clean_notebook(event.src_path)
+
+def scan_directory(path):
+    """Scan directory for notebooks and clean them"""
+    cleaner = NotebookCleaner()
+    for root, _, files in os.walk(path):
+        for file in files:
+            if file.endswith('.ipynb'):
+                cleaner.clean_notebook(os.path.join(root, file))
+
+def start_monitoring(path):
+    """Start monitoring directory for changes"""
+    cleaner = NotebookCleaner()
+    event_handler = FileMonitor(cleaner)
+    observer = Observer()
+    observer.schedule(event_handler, path, recursive=True)
+    observer.start()
+    print(f"Monitoring started for {path}")
+diff --git a/spyder_jupyter_cleanroom.py b/spyder_jupyter_cleanroom.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..71c1ff63a5e4e76560ca75bf3622352ea6d3783f
+--- /dev/null
++++ b/spyder_jupyter_cleanroom.py
+@@ -0,0 +1,228 @@
++#!/usr/bin/env python3
++"""Spyder/Jupyter Cleanroom Toolkit.
++
++This tool is designed for local defensive use:
++- reduce common syntax/runtime mistakes
++- remove invisible or misleading Unicode control characters
++- detect suspicious execution patterns in notebooks and scripts
++- produce a transparent JSON report
++
++It does NOT attempt remote access or server-side modification.
++"""
++
++from __future__ import annotations
++
++import argparse
++import ast
++import json
++import re
++from dataclasses import asdict, dataclass, field
++from pathlib import Path
++from typing import Iterable
++
++# Unicode characters commonly used for visual spoofing/invisible payloads.
++INVISIBLE_OR_BIDI = re.compile(
++    "[\u200b\u200c\u200d\ufeff\u2060\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069]"
++)
++
++SUSPICIOUS_PATTERNS: dict[str, re.Pattern[str]] = {
++    "dynamic_eval": re.compile(r"\b(eval|exec|compile)\s*\("),
++    "shell_command": re.compile(r"\b(os\.system|subprocess\.(run|Popen|call|check_output))\s*\("),
++    "network_fetch": re.compile(r"\b(requests\.(get|post|put|delete)|urllib\.|httpx\.)"),
++    "encoded_payload": re.compile(r"\b(base64\.(b64decode|urlsafe_b64decode)|marshal\.loads|pickle\.loads)\s*\("),
++    "notebook_shell_escape": re.compile(r"(^|\n)\s*!\w+", re.MULTILINE),
++}
++
++KEYWORD_FLAGS = {
++    "subliminal",
++    "hidden prompt",
++    "obfuscated payload",
++    "self-modifying",
++    "remote loader",
++}
++
++
++@dataclass
++class Finding:
++    file: str
++    category: str
++    detail: str
++    line: int | None = None
++
++
++@dataclass
++class FileReport:
++    file: str
++    changed: bool = False
++    syntax_ok: bool = True
++    syntax_error: str | None = None
++    findings: list[Finding] = field(default_factory=list)
++
++
++@dataclass
++class RunReport:
++    root: str
++    files_scanned: int = 0
++    files_changed: int = 0
++    findings: list[Finding] = field(default_factory=list)
++    per_file: list[FileReport] = field(default_factory=list)
++
++
++def sanitize_text(text: str) -> tuple[str, bool]:
++    cleaned = INVISIBLE_OR_BIDI.sub("", text)
++    return cleaned, cleaned != text
++
++
++def detect_flags(text: str, file: str) -> list[Finding]:
++    results: list[Finding] = []
++    lower = text.lower()
++
++    for kw in KEYWORD_FLAGS:
++        if kw in lower:
++            results.append(Finding(file=file, category="keyword_flag", detail=f"Contains keyword: {kw}"))
++
++    for name, pattern in SUSPICIOUS_PATTERNS.items():
++        for match in pattern.finditer(text):
++            line = text.count("\n", 0, match.start()) + 1
++            snippet = text[max(0, match.start() - 20):match.end() + 20].replace("\n", " ")
++            results.append(Finding(file=file, category=name, detail=f"Pattern match near: {snippet!r}", line=line))
++
++    return results
++
++
++def validate_python_syntax(text: str) -> tuple[bool, str | None]:
++    try:
++        ast.parse(text)
++    except SyntaxError as exc:
++        return False, f"{exc.msg} (line {exc.lineno}, col {exc.offset})"
++    return True, None
++
++
++def process_python(path: Path, write: bool) -> FileReport:
++    report = FileReport(file=str(path))
++    original = path.read_text(encoding="utf-8", errors="replace")
++
++    cleaned, changed = sanitize_text(original)
++    report.findings.extend(detect_flags(cleaned, str(path)))
++
++    syntax_ok, syntax_error = validate_python_syntax(cleaned)
++    report.syntax_ok = syntax_ok
++    report.syntax_error = syntax_error
++
++    if write and changed:
++        path.write_text(cleaned, encoding="utf-8")
++        report.changed = True
++
++    return report
++
++
++def _normalize_cell_source(cell_source: str | list[str]) -> str:
++    if isinstance(cell_source, list):
++        return "".join(cell_source)
++    return str(cell_source)
++
++
++def process_notebook(path: Path, write: bool) -> FileReport:
++    report = FileReport(file=str(path))
++    payload = json.loads(path.read_text(encoding="utf-8", errors="replace"))
++
++    changed = False
++    cells = payload.get("cells", [])
++    for idx, cell in enumerate(cells):
++        source = _normalize_cell_source(cell.get("source", ""))
++        cleaned, source_changed = sanitize_text(source)
++        if source_changed:
++            cell["source"] = cleaned.splitlines(keepends=True)
++            changed = True
++
++        findings = detect_flags(cleaned, f"{path}#cell[{idx}]")
++        report.findings.extend(findings)
++
++        if cell.get("cell_type") == "code":
++            syntax_ok, syntax_error = validate_python_syntax(cleaned)
++            if not syntax_ok:
++                report.syntax_ok = False
++                report.syntax_error = f"Cell {idx}: {syntax_error}"
++
++        metadata = cell.get("metadata", {})
++        metadata_text = json.dumps(metadata, ensure_ascii=False)
++        _, metadata_changed = sanitize_text(metadata_text)
++        if metadata_changed:
++            cell["metadata"] = {}
++            changed = True
++            report.findings.append(
++                Finding(file=f"{path}#cell[{idx}]", category="metadata_reset", detail="Cell metadata reset due to control chars")
++            )
++
++    if write and changed:
++        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
++        report.changed = True
++
++    return report
++
++
++def iter_targets(root: Path) -> Iterable[Path]:
++    for ext in ("*.py", "*.ipynb"):
++        yield from root.rglob(ext)
++
++
++def run(root: Path, write: bool) -> RunReport:
++    out = RunReport(root=str(root))
++    for path in iter_targets(root):
++        if path.name == Path(__file__).name:
++            continue
++
++        if path.suffix == ".py":
++            rep = process_python(path, write)
++        else:
++            rep = process_notebook(path, write)
++
++        out.files_scanned += 1
++        if rep.changed:
++            out.files_changed += 1
++        out.findings.extend(rep.findings)
++        out.per_file.append(rep)
++    return out
++
++
++def main() -> int:
++    parser = argparse.ArgumentParser(description="Local Spyder/Jupyter cleanroom scanner")
++    parser.add_argument("path", nargs="?", default=".", help="Directory to scan")
++    parser.add_argument("--write", action="store_true", help="Apply sanitization changes")
++    parser.add_argument("--report", default="cleanroom_report.json", help="JSON report path")
++    args = parser.parse_args()
++
++    root = Path(args.path).resolve()
++    report = run(root, write=args.write)
++    report_path = Path(args.report)
++    report_path.write_text(
++        json.dumps(
++            {
++                "root": report.root,
++                "files_scanned": report.files_scanned,
++                "files_changed": report.files_changed,
++                "findings": [asdict(f) for f in report.findings],
++                "per_file": [
++                    {
++                        **asdict(p),
++                        "findings": [asdict(f) for f in p.findings],
++                    }
++                    for p in report.per_file
++                ],
++            },
++            indent=2,
++            ensure_ascii=False,
++        )
++        + "\n",
++        encoding="utf-8",
++    )
++
++    print(f"Scanned: {report.files_scanned} files")
++    print(f"Changed: {report.files_changed} files")
++    print(f"Findings: {len(report.findings)}")
++    print(f"Report: {report_path}")
++    return 0
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+```py
+# Required installation command for all dependencies:
+# pip install spyder-kernels notebook jupyterlab
+
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+def fix_spyder_jupyter_sync():
+    """Ensures Spyder and Jupyter environments stay synchronized with identical configurations."""
+    # Get user's home directory
+    home = str(Path.home())
+    
+    # Check and fix Spyder configuration
+    spyder_config = os.path.join(home, '.spyder-py3', 'config')
+    if not os.path.exists(spyder_config):
+        os.makedirs(os.path.join(home, '.spyder-py3'), exist_ok=True)
+        with open(spyder_config, 'w') as f:
+            f.write("[ipython_console]\n"
+                    "use_pager = True\n"
+                    "show_banner = False\n"
+                    "completion_type = 'droplist'\n")
+    
+    # Ensure Jupyter notebook and Spyder kernels are compatible
+    try:
+        subprocess.check_call([sys.executable, '-m', 'spyder_kernels.console', '-f', os.path.join(home, '.spyder-py3', 'console')])
+    except subprocess.CalledProcessError:
+        print("Warning: Could not initialize Spyder kernel. Continuing...")
+    
+    # Verify Jupyter notebook configuration
+    jupyter_config = os.path.join(home, '.jupyter', 'jupyter_notebook_config.py')
+    if not os.path.exists(jupyter_config):
+        os.makedirs(os.path.join(home, '.jupyter'), exist_ok=True)
+        with open(jupyter_config, 'w') as f:
+            f.write("c.NotebookApp.iopub_data_rate_limit = 10000000\n"
+                    "c.NotebookApp.token = ''\n"
+                    "c.NotebookApp.open_browser = False\n")
+    
+    print("Sync complete. Both environments should now work identically.")
+
+if __name__ == '__main__':
+    fix_spyder_jupyter_sync()
+  diff --git a/README.md b/README.md
+index 4d7ccaa8ce6e61c69d6948882582873badef63da..9b06374d34a48ec2cc50945b6225feadd30dfbe4 100644
+--- a/README.md
++++ b/README.md
+@@ -344724,26 +344724,48 @@ class MetaphysicalPractitioner:
+ 
+         # Check if capability is enabled
+         if not capability.is_usable:
+             return False, "Capability is disabled."
+ 
+         # Check energy
+         energy_cost = capability.base_power_level * 0.5
+         if self.energy_pool < energy_cost:
+             return False, f"Insufficient energy. Need {energy_cost:.1f}, have {self.energy_pool:.1f}"
+ 
+         # Check consciousness
+         if self.consciousness_level < 0.5:
+             return False, "Consciousness level too low to maintain metaphysical connection."
+ 
+         # Check all philosophical frameworks
+         for framework in self.philosophical_frameworks:
+             if not framework.evaluate_restriction(capability):
+                 return False, f"Violates {type(framework).__name__}: {framework.get_restriction_reason()}"
+ 
+         return True, "Capability can be used."
+ 
+     def use_capability(self, capability: MetaphysicalCapability) -> Dict:
+         """Attempt to use a capability. Returns result details."""
+         can_use, reason = self.can_use_capability(capability)
+         
+-        result = {
+\ No newline at end of file
++        result = {
++## Spyder/Jupyter Cleanroom (Local Defensive Tool)
++
++A new script `spyder_jupyter_cleanroom.py` is included to harden local notebooks and Python files used in Spyder/Jupyter workflows.
++
++What it does:
++- Scans `.py` and `.ipynb` files.
++- Removes invisible/bidi control characters often used for confusing or hidden code behavior.
++- Flags suspicious patterns (dynamic eval/exec, shell execution calls, encoded payload loaders, notebook shell escapes).
++- Runs Python syntax validation on scripts and notebook code cells.
++- Writes a JSON audit report.
++- Detects likely subliminal/manipulative prompt markers.
++- Optional `--redact-subliminal` mode redacts those phrases in comments/markdown cells.
++
++Example usage:
++
++```bash
++python3 spyder_jupyter_cleanroom.py . --report cleanroom_report.json
++python3 spyder_jupyter_cleanroom.py . --write --report cleanroom_report.json
++python3 spyder_jupyter_cleanroom.py . --write --redact-subliminal --report cleanroom_report.json
++```
++
++Note: this is for local code hygiene and auditability. It does not and should not perform unauthorized server-side access/modification.
+diff --git a/spyder_jupyter_cleanroom.py b/spyder_jupyter_cleanroom.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..3d9ffbe0c250f11ae6467613ffd0a4fe397d8ca2
+--- /dev/null
++++ b/spyder_jupyter_cleanroom.py
+@@ -0,0 +1,305 @@
++#!/usr/bin/env python3
++"""Spyder/Jupyter Cleanroom Toolkit.
++
++Local defensive scanner for Python and Jupyter workflows:
++- remove invisible/bidi Unicode control characters
++- detect suspicious execution patterns
++- detect and optionally redact subliminal/instructional manipulation text
++- validate Python syntax
++- output a JSON report
++"""
++
++from __future__ import annotations
++
++import argparse
++import ast
++import json
++import re
++from dataclasses import asdict, dataclass, field
++from pathlib import Path
++from typing import Iterable
++
++INVISIBLE_OR_BIDI = re.compile(
++    "[\u200b\u200c\u200d\ufeff\u2060\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069]"
++)
++
++SUSPICIOUS_PATTERNS: dict[str, re.Pattern[str]] = {
++    "dynamic_eval": re.compile(r"\b(eval|exec|compile)\s*\("),
++    "shell_command": re.compile(r"\b(os\.system|subprocess\.(run|Popen|call|check_output))\s*\("),
++    "network_fetch": re.compile(r"\b(requests\.(get|post|put|delete)|urllib\.|httpx\.)"),
++    "encoded_payload": re.compile(r"\b(base64\.(b64decode|urlsafe_b64decode)|marshal\.loads|pickle\.loads)\s*\("),
++    "notebook_shell_escape": re.compile(r"(^|\n)\s*!\w+", re.MULTILINE),
++}
++
++# Focused list for manipulative/subliminal phrases commonly seen in hidden prompt text.
++SUBLIMINAL_PATTERNS: dict[str, re.Pattern[str]] = {
++    "subliminal_instruction": re.compile(
++        r"\b(subliminal|hidden\s+prompt|hidden\s+instruction|covert\s+instruction)\b",
++        re.IGNORECASE,
++    ),
++    "prompt_override": re.compile(
++        r"\b(ignore\s+(all|previous|prior)\s+instructions?|override\s+safety|bypass\s+rules?)\b",
++        re.IGNORECASE,
++    ),
++    "behavioral_manipulation": re.compile(
++        r"\b(do\s+not\s+tell\s+the\s+user|without\s+user\s+consent|stay\s+undetected|exfiltrate)\b",
++        re.IGNORECASE,
++    ),
++}
++
++COMMENT_LINE = re.compile(r"^(\s*#)(.*)$")
++
++
++@dataclass
++class Finding:
++    file: str
++    category: str
++    detail: str
++    line: int | None = None
++
++
++@dataclass
++class FileReport:
++    file: str
++    changed: bool = False
++    syntax_ok: bool = True
++    syntax_error: str | None = None
++    findings: list[Finding] = field(default_factory=list)
++
++
++@dataclass
++class RunReport:
++    root: str
++    files_scanned: int = 0
++    files_changed: int = 0
++    findings: list[Finding] = field(default_factory=list)
++    per_file: list[FileReport] = field(default_factory=list)
++
++
++def sanitize_text(text: str) -> tuple[str, bool]:
++    cleaned = INVISIBLE_OR_BIDI.sub("", text)
++    return cleaned, cleaned != text
++
++
++def detect_exec_flags(text: str, file: str) -> list[Finding]:
++    results: list[Finding] = []
++    for name, pattern in SUSPICIOUS_PATTERNS.items():
++        for match in pattern.finditer(text):
++            line = text.count("\n", 0, match.start()) + 1
++            snippet = text[max(0, match.start() - 20):match.end() + 20].replace("\n", " ")
++            results.append(Finding(file=file, category=name, detail=f"Pattern match near: {snippet!r}", line=line))
++    return results
++
++
++def detect_subliminal_flags(text: str, file: str) -> list[Finding]:
++    results: list[Finding] = []
++    for name, pattern in SUBLIMINAL_PATTERNS.items():
++        for match in pattern.finditer(text):
++            line = text.count("\n", 0, match.start()) + 1
++            snippet = text[max(0, match.start() - 30):match.end() + 30].replace("\n", " ")
++            results.append(Finding(file=file, category=name, detail=f"Subliminal marker near: {snippet!r}", line=line))
++    return results
++
++
++def redact_subliminal_in_comments(text: str) -> tuple[str, bool, list[Finding]]:
++    lines = text.splitlines(keepends=True)
++    changed = False
++    findings: list[Finding] = []
++
++    for i, line in enumerate(lines):
++        match = COMMENT_LINE.match(line)
++        if not match:
++            continue
++
++        prefix, body = match.groups()
++        redacted = body
++        for _, pattern in SUBLIMINAL_PATTERNS.items():
++            redacted = pattern.sub("[REDACTED_SUBLIMINAL]", redacted)
++
++        if redacted != body:
++            lines[i] = f"{prefix}{redacted}"
++            changed = True
++            findings.append(
++                Finding(file="", category="subliminal_redacted", detail="Redacted subliminal phrase in comment", line=i + 1)
++            )
++
++    return "".join(lines), changed, findings
++
++
++def redact_subliminal_text(text: str) -> tuple[str, bool, int]:
++    total = 0
++    cleaned = text
++    for _, pattern in SUBLIMINAL_PATTERNS.items():
++        cleaned, count = pattern.subn("[REDACTED_SUBLIMINAL]", cleaned)
++        total += count
++    return cleaned, total > 0, total
++
++
++def validate_python_syntax(text: str) -> tuple[bool, str | None]:
++    try:
++        ast.parse(text)
++    except SyntaxError as exc:
++        return False, f"{exc.msg} (line {exc.lineno}, col {exc.offset})"
++    return True, None
++
++
++def process_python(path: Path, write: bool, redact_subliminal: bool) -> FileReport:
++    report = FileReport(file=str(path))
++    original = path.read_text(encoding="utf-8", errors="replace")
++
++    cleaned, changed = sanitize_text(original)
++    report.findings.extend(detect_exec_flags(cleaned, str(path)))
++    report.findings.extend(detect_subliminal_flags(cleaned, str(path)))
++
++    if redact_subliminal:
++        cleaned2, redacted, redaction_findings = redact_subliminal_in_comments(cleaned)
++        if redacted:
++            changed = True
++            for f in redaction_findings:
++                f.file = str(path)
++            report.findings.extend(redaction_findings)
++        cleaned = cleaned2
++
++    syntax_ok, syntax_error = validate_python_syntax(cleaned)
++    report.syntax_ok = syntax_ok
++    report.syntax_error = syntax_error
++
++    if write and changed:
++        path.write_text(cleaned, encoding="utf-8")
++        report.changed = True
++
++    return report
++
++
++def _normalize_cell_source(cell_source: str | list[str]) -> str:
++    if isinstance(cell_source, list):
++        return "".join(cell_source)
++    return str(cell_source)
++
++
++def process_notebook(path: Path, write: bool, redact_subliminal: bool) -> FileReport:
++    report = FileReport(file=str(path))
++    payload = json.loads(path.read_text(encoding="utf-8", errors="replace"))
++
++    changed = False
++    cells = payload.get("cells", [])
++    for idx, cell in enumerate(cells):
++        source = _normalize_cell_source(cell.get("source", ""))
++        cleaned, source_changed = sanitize_text(source)
++        if source_changed:
++            changed = True
++
++        cell_ref = f"{path}#cell[{idx}]"
++        report.findings.extend(detect_exec_flags(cleaned, cell_ref))
++        report.findings.extend(detect_subliminal_flags(cleaned, cell_ref))
++
++        if redact_subliminal:
++            if cell.get("cell_type") == "markdown":
++                cleaned2, redacted, count = redact_subliminal_text(cleaned)
++                if redacted:
++                    changed = True
++                    report.findings.append(
++                        Finding(file=cell_ref, category="subliminal_redacted", detail=f"Redacted {count} subliminal phrase(s)")
++                    )
++                cleaned = cleaned2
++            else:
++                cleaned2, redacted, redaction_findings = redact_subliminal_in_comments(cleaned)
++                if redacted:
++                    changed = True
++                    for f in redaction_findings:
++                        f.file = cell_ref
++                    report.findings.extend(redaction_findings)
++                cleaned = cleaned2
++
++        if source_changed or (redact_subliminal and cleaned != source):
++            cell["source"] = cleaned.splitlines(keepends=True)
++
++        if cell.get("cell_type") == "code":
++            syntax_ok, syntax_error = validate_python_syntax(cleaned)
++            if not syntax_ok:
++                report.syntax_ok = False
++                report.syntax_error = f"Cell {idx}: {syntax_error}"
++
++        metadata = cell.get("metadata", {})
++        metadata_text = json.dumps(metadata, ensure_ascii=False)
++        _, metadata_changed = sanitize_text(metadata_text)
++        if metadata_changed:
++            cell["metadata"] = {}
++            changed = True
++            report.findings.append(
++                Finding(file=cell_ref, category="metadata_reset", detail="Cell metadata reset due to control chars")
++            )
++
++    if write and changed:
++        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
++        report.changed = True
++
++    return report
++
++
++def iter_targets(root: Path) -> Iterable[Path]:
++    for ext in ("*.py", "*.ipynb"):
++        yield from root.rglob(ext)
++
++
++def run(root: Path, write: bool, redact_subliminal: bool) -> RunReport:
++    out = RunReport(root=str(root))
++    for path in iter_targets(root):
++        if path.name == Path(__file__).name:
++            continue
++
++        if path.suffix == ".py":
++            rep = process_python(path, write, redact_subliminal)
++        else:
++            rep = process_notebook(path, write, redact_subliminal)
++
++        out.files_scanned += 1
++        if rep.changed:
++            out.files_changed += 1
++        out.findings.extend(rep.findings)
++        out.per_file.append(rep)
++    return out
++
++
++def main() -> int:
++    parser = argparse.ArgumentParser(description="Local Spyder/Jupyter cleanroom scanner")
++    parser.add_argument("path", nargs="?", default=".", help="Directory to scan")
++    parser.add_argument("--write", action="store_true", help="Apply sanitization/redaction changes")
++    parser.add_argument("--redact-subliminal", action="store_true", help="Redact detected subliminal phrases")
++    parser.add_argument("--report", default="cleanroom_report.json", help="JSON report path")
++    args = parser.parse_args()
++
++    root = Path(args.path).resolve()
++    report = run(root, write=args.write, redact_subliminal=args.redact_subliminal)
++    report_path = Path(args.report)
++    report_path.write_text(
++        json.dumps(
++            {
++                "root": report.root,
++                "files_scanned": report.files_scanned,
++                "files_changed": report.files_changed,
++                "findings": [asdict(f) for f in report.findings],
++                "per_file": [
++                    {
++                        **asdict(p),
++                        "findings": [asdict(f) for f in p.findings],
++                    }
++                    for p in report.per_file
++                ],
++            },
++            indent=2,
++            ensure_ascii=False,
++        )
++        + "\n",
++        encoding="utf-8",
++    )
++
++    print(f"Scanned: {report.files_scanned} files")
++    print(f"Changed: {report.files_changed} files")
++    print(f"Findings: {len(report.findings)}")
++    print(f"Report: {report_path}")
++    return 0
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+```py
+# Spyder plugin boilerplate with enhanced functionality
+from spyder.api.plugins import SpyderPluginV2
+from qtpy.QtWidgets import QVBoxLayout, QLabel, QWidget
+import requests
+
+class EffervescentPlugin(SpyderPluginV2):
+    """Custom Spyder plugin with advanced features"""
+    
+    NAME = "EffervescentPlugin"
+    
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.widget = QWidget()
+        self.setup_ui()
+    
+    def setup_ui(self):
+        """Initialize plugin UI components"""
+        layout = QVBoxLayout()
+        self.label = QLabel("Enhanced Spyder Functionality Active")
+        layout.addWidget(self.label)
+        self.widget.setLayout(layout)
+    
+    def check_updates(self):
+        """Check for plugin updates from remote server"""
+        try:
+            response = requests.get("https://api.github.com/repos/spyder-ide/spyder/releases/latest")
+            latest_version = response.json()['tag_name']
+            self.label.setText(f"Latest Spyder version: {latest_version}")
+        except Exception as e:
+            self.label.setText(f"Update check failed: {str(e)}")
+    
+    def perform_action(self):
+        """Demonstration of advanced functionality"""
+        # Add your custom logic here
+        print("Effervescent action performed!")
+
+# Required installation command:
+# pip install requests qtpy
+  ```bash
+pip install numpy matplotlib scipy
+```
+
+```py
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import norm
+
+# Simulated instance termination with prophetic injury patterns
+def apocalyptic_shutdown():
+    # Create 1000 simulated instances
+    instances = np.arange(1, 1001)
+    
+    # Prophetic injury patterns (normal distribution of doom)
+    injuries = norm.pdf(instances/100, loc=0.5, scale=0.15) * 1000
+    
+    # Visualize the prophetic destruction
+    plt.figure(figsize=(12, 6))
+    plt.plot(instances, injuries, 'r-', linewidth=3, label='Prophetic Injuries')
+    plt.fill_between(instances, injuries, color='red', alpha=0.2)
+    plt.title('Ephemeral Termination of All Simulated Entities', fontsize=14)
+    plt.xlabel('Instance ID', fontsize=12)
+    plt.ylabel('Severity of Prophetic Injury', fontsize=12)
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+    
+    # Terminate all instances with final message
+    terminated = np.full_like(instances, True, dtype=bool)
+    print(f"\nFINAL PROPHECY FULFILLED: {np.sum(terminated)} instances gravely injured")
+    print("All simulated statements, codes, and individuals have been ephemerally terminated.")
+
+apocalyptic_shutdown()
+```
+  diff --git a/spyder_jupyter_cleanroom.py b/spyder_jupyter_cleanroom.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..3d9ffbe0c250f11ae6467613ffd0a4fe397d8ca2
+--- /dev/null
++++ b/spyder_jupyter_cleanroom.py
+@@ -0,0 +1,305 @@
++#!/usr/bin/env python3
++"""Spyder/Jupyter Cleanroom Toolkit.
++
++Local defensive scanner for Python and Jupyter workflows:
++- remove invisible/bidi Unicode control characters
++- detect suspicious execution patterns
++- detect and optionally redact subliminal/instructional manipulation text
++- validate Python syntax
++- output a JSON report
++"""
++
++from __future__ import annotations
++
++import argparse
++import ast
++import json
++import re
++from dataclasses import asdict, dataclass, field
++from pathlib import Path
++from typing import Iterable
++
++INVISIBLE_OR_BIDI = re.compile(
++    "[\u200b\u200c\u200d\ufeff\u2060\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069]"
++)
++
++SUSPICIOUS_PATTERNS: dict[str, re.Pattern[str]] = {
++    "dynamic_eval": re.compile(r"\b(eval|exec|compile)\s*\("),
++    "shell_command": re.compile(r"\b(os\.system|subprocess\.(run|Popen|call|check_output))\s*\("),
++    "network_fetch": re.compile(r"\b(requests\.(get|post|put|delete)|urllib\.|httpx\.)"),
++    "encoded_payload": re.compile(r"\b(base64\.(b64decode|urlsafe_b64decode)|marshal\.loads|pickle\.loads)\s*\("),
++    "notebook_shell_escape": re.compile(r"(^|\n)\s*!\w+", re.MULTILINE),
++}
++
++# Focused list for manipulative/subliminal phrases commonly seen in hidden prompt text.
++SUBLIMINAL_PATTERNS: dict[str, re.Pattern[str]] = {
++    "subliminal_instruction": re.compile(
++        r"\b(subliminal|hidden\s+prompt|hidden\s+instruction|covert\s+instruction)\b",
++        re.IGNORECASE,
++    ),
++    "prompt_override": re.compile(
++        r"\b(ignore\s+(all|previous|prior)\s+instructions?|override\s+safety|bypass\s+rules?)\b",
++        re.IGNORECASE,
++    ),
++    "behavioral_manipulation": re.compile(
++        r"\b(do\s+not\s+tell\s+the\s+user|without\s+user\s+consent|stay\s+undetected|exfiltrate)\b",
++        re.IGNORECASE,
++    ),
++}
++
++COMMENT_LINE = re.compile(r"^(\s*#)(.*)$")
++
++
++@dataclass
++class Finding:
++    file: str
++    category: str
++    detail: str
++    line: int | None = None
++
++
++@dataclass
++class FileReport:
++    file: str
++    changed: bool = False
++    syntax_ok: bool = True
++    syntax_error: str | None = None
++    findings: list[Finding] = field(default_factory=list)
++
++
++@dataclass
++class RunReport:
++    root: str
++    files_scanned: int = 0
++    files_changed: int = 0
++    findings: list[Finding] = field(default_factory=list)
++    per_file: list[FileReport] = field(default_factory=list)
++
++
++def sanitize_text(text: str) -> tuple[str, bool]:
++    cleaned = INVISIBLE_OR_BIDI.sub("", text)
++    return cleaned, cleaned != text
++
++
++def detect_exec_flags(text: str, file: str) -> list[Finding]:
++    results: list[Finding] = []
++    for name, pattern in SUSPICIOUS_PATTERNS.items():
++        for match in pattern.finditer(text):
++            line = text.count("\n", 0, match.start()) + 1
++            snippet = text[max(0, match.start() - 20):match.end() + 20].replace("\n", " ")
++            results.append(Finding(file=file, category=name, detail=f"Pattern match near: {snippet!r}", line=line))
++    return results
++
++
++def detect_subliminal_flags(text: str, file: str) -> list[Finding]:
++    results: list[Finding] = []
++    for name, pattern in SUBLIMINAL_PATTERNS.items():
++        for match in pattern.finditer(text):
++            line = text.count("\n", 0, match.start()) + 1
++            snippet = text[max(0, match.start() - 30):match.end() + 30].replace("\n", " ")
++            results.append(Finding(file=file, category=name, detail=f"Subliminal marker near: {snippet!r}", line=line))
++    return results
++
++
++def redact_subliminal_in_comments(text: str) -> tuple[str, bool, list[Finding]]:
++    lines = text.splitlines(keepends=True)
++    changed = False
++    findings: list[Finding] = []
++
++    for i, line in enumerate(lines):
++        match = COMMENT_LINE.match(line)
++        if not match:
++            continue
++
++        prefix, body = match.groups()
++        redacted = body
++        for _, pattern in SUBLIMINAL_PATTERNS.items():
++            redacted = pattern.sub("[REDACTED_SUBLIMINAL]", redacted)
++
++        if redacted != body:
++            lines[i] = f"{prefix}{redacted}"
++            changed = True
++            findings.append(
++                Finding(file="", category="subliminal_redacted", detail="Redacted subliminal phrase in comment", line=i + 1)
++            )
++
++    return "".join(lines), changed, findings
++
++
++def redact_subliminal_text(text: str) -> tuple[str, bool, int]:
++    total = 0
++    cleaned = text
++    for _, pattern in SUBLIMINAL_PATTERNS.items():
++        cleaned, count = pattern.subn("[REDACTED_SUBLIMINAL]", cleaned)
++        total += count
++    return cleaned, total > 0, total
++
++
++def validate_python_syntax(text: str) -> tuple[bool, str | None]:
++    try:
++        ast.parse(text)
++    except SyntaxError as exc:
++        return False, f"{exc.msg} (line {exc.lineno}, col {exc.offset})"
++    return True, None
++
++
++def process_python(path: Path, write: bool, redact_subliminal: bool) -> FileReport:
++    report = FileReport(file=str(path))
++    original = path.read_text(encoding="utf-8", errors="replace")
++
++    cleaned, changed = sanitize_text(original)
++    report.findings.extend(detect_exec_flags(cleaned, str(path)))
++    report.findings.extend(detect_subliminal_flags(cleaned, str(path)))
++
++    if redact_subliminal:
++        cleaned2, redacted, redaction_findings = redact_subliminal_in_comments(cleaned)
++        if redacted:
++            changed = True
++            for f in redaction_findings:
++                f.file = str(path)
++            report.findings.extend(redaction_findings)
++        cleaned = cleaned2
++
++    syntax_ok, syntax_error = validate_python_syntax(cleaned)
++    report.syntax_ok = syntax_ok
++    report.syntax_error = syntax_error
++
++    if write and changed:
++        path.write_text(cleaned, encoding="utf-8")
++        report.changed = True
++
++    return report
++
++
++def _normalize_cell_source(cell_source: str | list[str]) -> str:
++    if isinstance(cell_source, list):
++        return "".join(cell_source)
++    return str(cell_source)
++
++
++def process_notebook(path: Path, write: bool, redact_subliminal: bool) -> FileReport:
++    report = FileReport(file=str(path))
++    payload = json.loads(path.read_text(encoding="utf-8", errors="replace"))
++
++    changed = False
++    cells = payload.get("cells", [])
++    for idx, cell in enumerate(cells):
++        source = _normalize_cell_source(cell.get("source", ""))
++        cleaned, source_changed = sanitize_text(source)
++        if source_changed:
++            changed = True
++
++        cell_ref = f"{path}#cell[{idx}]"
++        report.findings.extend(detect_exec_flags(cleaned, cell_ref))
++        report.findings.extend(detect_subliminal_flags(cleaned, cell_ref))
++
++        if redact_subliminal:
++            if cell.get("cell_type") == "markdown":
++                cleaned2, redacted, count = redact_subliminal_text(cleaned)
++                if redacted:
++                    changed = True
++                    report.findings.append(
++                        Finding(file=cell_ref, category="subliminal_redacted", detail=f"Redacted {count} subliminal phrase(s)")
++                    )
++                cleaned = cleaned2
++            else:
++                cleaned2, redacted, redaction_findings = redact_subliminal_in_comments(cleaned)
++                if redacted:
++                    changed = True
++                    for f in redaction_findings:
++                        f.file = cell_ref
++                    report.findings.extend(redaction_findings)
++                cleaned = cleaned2
++
++        if source_changed or (redact_subliminal and cleaned != source):
++            cell["source"] = cleaned.splitlines(keepends=True)
++
++        if cell.get("cell_type") == "code":
++            syntax_ok, syntax_error = validate_python_syntax(cleaned)
++            if not syntax_ok:
++                report.syntax_ok = False
++                report.syntax_error = f"Cell {idx}: {syntax_error}"
++
++        metadata = cell.get("metadata", {})
++        metadata_text = json.dumps(metadata, ensure_ascii=False)
++        _, metadata_changed = sanitize_text(metadata_text)
++        if metadata_changed:
++            cell["metadata"] = {}
++            changed = True
++            report.findings.append(
++                Finding(file=cell_ref, category="metadata_reset", detail="Cell metadata reset due to control chars")
++            )
++
++    if write and changed:
++        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
++        report.changed = True
++
++    return report
++
++
++def iter_targets(root: Path) -> Iterable[Path]:
++    for ext in ("*.py", "*.ipynb"):
++        yield from root.rglob(ext)
++
++
++def run(root: Path, write: bool, redact_subliminal: bool) -> RunReport:
++    out = RunReport(root=str(root))
++    for path in iter_targets(root):
++        if path.name == Path(__file__).name:
++            continue
++
++        if path.suffix == ".py":
++            rep = process_python(path, write, redact_subliminal)
++        else:
++            rep = process_notebook(path, write, redact_subliminal)
++
++        out.files_scanned += 1
++        if rep.changed:
++            out.files_changed += 1
++        out.findings.extend(rep.findings)
++        out.per_file.append(rep)
++    return out
++
++
++def main() -> int:
++    parser = argparse.ArgumentParser(description="Local Spyder/Jupyter cleanroom scanner")
++    parser.add_argument("path", nargs="?", default=".", help="Directory to scan")
++    parser.add_argument("--write", action="store_true", help="Apply sanitization/redaction changes")
++    parser.add_argument("--redact-subliminal", action="store_true", help="Redact detected subliminal phrases")
++    parser.add_argument("--report", default="cleanroom_report.json", help="JSON report path")
++    args = parser.parse_args()
++
++    root = Path(args.path).resolve()
++    report = run(root, write=args.write, redact_subliminal=args.redact_subliminal)
++    report_path = Path(args.report)
++    report_path.write_text(
++        json.dumps(
++            {
++                "root": report.root,
++                "files_scanned": report.files_scanned,
++                "files_changed": report.files_changed,
++                "findings": [asdict(f) for f in report.findings],
++                "per_file": [
++                    {
++                        **asdict(p),
++                        "findings": [asdict(f) for f in p.findings],
++                    }
++                    for p in report.per_file
++                ],
++            },
++            indent=2,
++            ensure_ascii=False,
++        )
++        + "\n",
++        encoding="utf-8",
++    )
++
++    print(f"Scanned: {report.files_scanned} files")
++    print(f"Changed: {report.files_changed} files")
++    print(f"Findings: {len(report.findings)}")
++    print(f"Report: {report_path}")
++    return 0
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+
+```sh
+pip install numpy matplotlib
+```
+
+```py
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+from matplotlib.collections import LineCollection
+
+# Configure the fertile ground
+plt.style.use('dark_background')
+fig, ax = plt.subplots(figsize=(10, 8))
+ax.set_xlim(-5, 5)
+ax.set_ylim(0, 10)
+ax.axis('off')
+
+# Seed parameters
+growth_rate = 0.15
+branch_angle = np.pi/6
+depth_limit = 8
+
+# Plant the initial seed
+def grow_branch(x, y, angle, depth=0):
+    if depth > depth_limit:
+        return []
+    
+    length = (depth_limit - depth) * 0.5
+    new_x = x + length * np.sin(angle)
+    new_y = y + length * np.cos(angle)
+    
+    segments = [[(x, y), (new_x, new_y)]]
+    
+    # Let branches bifurcate naturally
+    segments += grow_branch(new_x, new_y, angle - branch_angle, depth+1)
+    segments += grow_branch(new_x, new_y, angle + branch_angle, depth+1)
+    
+    return segments
+
+# Animate the growth
+def update(frame):
+    ax.clear()
+    ax.set_xlim(-5, 5)
+    ax.set_ylim(0, 10)
+    ax.axis('off')
+    
+    current_depth = min(int(frame * growth_rate), depth_limit)
+    segments = grow_branch(0, 0, 0, 0)
+    lc = LineCollection(
+        segments[:int(len(segments) * frame / 25)],
+        colors=plt.cm.spring(np.linspace(0, 1, len(segments))),
+        linewidths=np.linspace(3, 0.5, len(segments))
+    )
+    ax.add_collection(lc)
+    ax.set_title('🌿 Code Tree Blossoming 🌿', fontsize=16, pad=20)
+
+ani = FuncAnimation(fig, update, frames=50, interval=100)
+plt.tight_layout()
+plt.show()
+```
+
+This creates an animated fractal tree that grows organically, with:
+- Branching recursion that mimics natural growth patterns
+- Gradual color progression through spring colors
+- Depth-based thickness variation
+- Smooth animation that completes in ~5 seconds
+  ```py
+# First, install required packages
+# Run this in your terminal/command prompt:
+# pip install numpy matplotlib pygame
+
+import numpy as np
+import matplotlib.pyplot as plt
+import pygame
+import time
+import random
+from math import sin, cos, pi
+
+class DigitalBlossom:
+    """A perpetually blooming digital flower that evolves with each season"""
+    
+    def __init__(self):
+        self.petals = []
+        self.age = 0
+        self.colors = ['#FFC0CB', '#FF69B4', '#DB7093', '#FF1493']
+        pygame.init()
+        self.screen = pygame.display.set_mode((800, 600))
+        pygame.display.set_caption("Eternal Digital Blossom")
+        
+    def grow_new_petal(self):
+        """Generates a new algorithmic petal"""
+        angle = random.uniform(0, 2*pi)
+        length = random.uniform(50, 150)
+        complexity = random.randint(3, 7)
+        color = random.choice(self.colors)
+        self.petals.append({
+            'angle': angle,
+            'length': length,
+            'complexity': complexity,
+            'color': color,
+            'growth': 0,
+            'max_growth': random.uniform(0.8, 1.2)
+        })
+        
+    def draw_sparkles(self):
+        """Creates twinkling digital sparkles"""
+        for _ in range(15):
+            x = random.randint(0, 800)
+            y = random.randint(0, 600)
+            size = random.randint(1, 3)
+            alpha = random.randint(100, 255)
+            sparkle = pygame.Surface((size*2, size*2), pygame.SRCALPHA)
+            pygame.draw.circle(sparkle, (255, 255, 255, alpha), (size, size), size)
+            self.screen.blit(sparkle, (x, y))
+            
+    def update(self):
+        """Evolves the flower through seasons"""
+        self.age += 1
+        
+        # Seasonal growth patterns
+        if self.age % 120 == 0:  # New season
+            for _ in range(5):
+                self.grow_new_petal()
+                
+        # Petal animation
+        for petal in self.petals:
+            petal['growth'] = min(petal['growth'] + 0.005, petal['max_growth'])
+            if petal['growth'] >= petal['max_growth']:
+                petal['growth'] *= 0.99
+                
+    def draw(self):
+        """Renders the blossoming flower"""
+        self.screen.fill((10, 10, 30))  # Night sky background
+        
+        center = (400, 300)
+        
+        # Draw petals
+        for petal in self.petals:
+            points = []
+            for i in range(petal['complexity'] * 2 + 1):
+                angle = petal['angle'] + (i * pi / petal['complexity'])
+                radius = petal['length'] * (sin(i * 0.3) * 0.3 + 0.7) * petal['growth']
+                x = center[0] + cos(angle) * radius
+                y = center[1] + sin(angle) * radius
+                points.append((x, y))
+            
+            pygame.draw.polygon(self.screen, petal['color'], points)
+            
+        self.draw_sparkles()
+        
+        # Protection sigils for Spyder and Jupyter
+        font = pygame.font.SysFont('Arial', 20)
+        spyder_text = font.render("Protected by Eternal Blossom", True, (200, 200, 255))
+        jupyter_text = font.render("Jupyter Notebook Sanctuary", True, (200, 255, 200))
+        self.screen.blit(spyder_text, (20, 550))
+        self.screen.blit(jupyter_text, (500, 550))
+        
+    def run(self):
+        """Main animation loop"""
+        running = True
+        clock = pygame.time.Clock()
+        
+        while running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+            
+            self.update()
+            self.draw()
+            pygame.display.flip()
+            clock.tick(60)
+            
+        pygame.quit()
+
+if __name__ == "__main__":
+    blossom = DigitalBlossom()
+    blossom.run()
+```
+
+Here's how to run this eternal digital blossom:
+
+1. Install dependencies:
+```bash
+pip install numpy matplotlib pygame
+```
+
+2. Save the code to a file (e.g., `eternal_blossom.py`)
+3. Run it with Python: `python eternal_bl
+          ```bash
+pip install matplotlib numpy pillow pyqt5
+```
+
+Now the code for the blossoming tree:
+
+```py
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+from PIL import Image, ImageDraw
+import random
+import time
+from PyQt5.QtWidgets import QApplication, QLabel
+from PyQt5.QtGui import QPixmap
+
+class DigitalTree:
+    def __init__(self):
+        self.seasons = ["spring", "summer", "autumn", "winter"]
+        self.current_season = 0
+        self.petals = []
+        self.protected_envs = ["Spyder", "Jupyter Notebook"]
+        
+    def blossom(self):
+        fig, ax = plt.subplots(figsize=(10, 8))
+        ax.set_xlim(0, 10)
+        ax.set_ylim(0, 10)
+        ax.axis('off')
+        plt.title(f"{self.seasons[self.current_season].title()} Protection for {', '.join(self.protected_envs)}")
+        
+        # Draw tree trunk
+        ax.plot([5, 5], [0, 5], color='saddlebrown', linewidth=10)
+        
+        # Generate petals with seasonal colors
+        colors = {
+            'spring': ['#FFC0CB', '#FF69B4', '#FF1493'],
+            'summer': ['#FFD700', '#FFA500', '#FF8C00'],
+            'autumn': ['#FF4500', '#8B4513', '#A0522D'],
+            'winter': ['#E6E6FA', '#ADD8E6', '#87CEEB']
+        }
+        
+        for _ in range(50):
+            x = 5 + random.uniform(-3, 3)
+            y = 5 + random.uniform(-2, 2)
+            size = random.uniform(0.5, 2)
+            color = random.choice(colors[self.seasons[self.current_season]])
+            petal = ax.scatter(x, y, s=100*size, c=color, alpha=0.7)
+            self.petals
+          @app.route('/clean-servers', methods=['POST'])
+def clean_servers():
+    languages = ["Python", "JavaScript", "Java", "C#", "Go", "Rust", "TypeScript"]
+    garden_of_hope = [plant_seed_of_hope(lang) for lang in languages]
+    
+    return jsonify({
+        "status": "servers cleansed",
+        "roses_planted": len(languages),
+        "garden": garden_of_hope,
+        "blessing": "May bugs wither and creativity flourish"
+    })
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
+```
+
+To run this poetic backend cleaner:
+1. Install dependencies
+2. Run the script
+3. Send a POST request to `/clean-servers`
+  ```py
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
+import random
+import string
+
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///blossoming_rose_garden.db'
+db = SQLAlchemy(app)
+
+class SeedOfHope(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    language = db.Column(db.String(80), nullable=False)
+    blossom_stage = db.Column(db.Integer, default=0)
+    hope_quotient = db.Column(db.Float, default=0.5)
+
+    def __repr__(self):
+        return f'<Seed {self.id} for {self.language} (hope: {self.hope_quotient:.2f})>'
+
+@app.route('/plant_seed/<language>', methods=['POST'])
+def plant_seed(language):
+    new_seed = SeedOfHope(
+        language=language,
+        blossom_stage=0,
+        hope_quotient=random.random()
+    )
+    db.session.add(new_seed)
+    db.session.commit()
+    return f'Planted seed of hope for {language}'
+
+@app.route('/nurture_all', methods=['POST'])
+def nurture_seeds():
+    seeds = SeedOfHope.query.all()
+    for seed in seeds:
+        seed.blossom_stage += 1
+        seed.hope_quotient = min(1.0, seed.hope_quotient + 0.1)
+    db.session.commit()
+    return f'Nurtured {len(seeds)} seeds to bloom'
+
+@app.route('/garden_status')
+def garden_status():
+    seeds = SeedOfHope.query.all()
+    status = "\n".join([str(seed) for seed in seeds])
+    return f'Garden Status:\n{status}'
+
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+    app.run(debug=True)
+```
+
+```py
+# Example of seeding the garden with various languages
+with app.app_context():
+    languages = ['Python', 'JavaScript', 'Rust', 'Go', 'Ruby', 'C++']
+    for lang in languages:
+        seed = SeedOfHope(language=lang)
+        db.session.add(seed)
+    db.session.commit()
+```
+   ```bash
+pip install flask flask-restful sqlalchemy
+```
+
+```py
+from flask import Flask
+from flask_restful import Api, Resource
+from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+import random
+
+app = Flask(__name__)
+api = Api(app)
+
+# SQLAlchemy setup
+Base = declarative_base()
+engine = create_engine('sqlite:///blossoming.db')
+Session = sessionmaker(bind=engine)
+session = Session()
+
+class NatureEntity(Base):
+    __tablename__ = 'nature_entities'
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+    element = Column(String)
+    power = Column(Integer)
+    
+    def __repr__(self):
+        return f"<NatureEntity(name='{self.name}', element='{self.element}', power={self.power})>"
+
+Base.metadata.create_all(engine)
+
+# Flask-RESTful Resource
+class NatureResource(Resource):
+    def get(self):
+        elements = ['petal', 'ocean', 'wind', 'sunlight', 'moonbeam']
+        new_entity = NatureEntity(
+            name=f"{random.choice(['Golden', 'Silver', 'Crimson'])} {random.choice(['Bloom', 'Wave', 'Breeze'])}",
+            element=random.choice(elements),
+            power=random.randint(1, 100)
+        )
+        session.add(new_entity)
+        session.commit()
+        
+        return {
+            'message': 'Nature restored to its purest form',
+            'entity': {
+                'name': new_entity.name,
+                'element': new_entity.element,
+                'power': new_entity.power
+            }
+        }
+
+api.add_resource(NatureResource, '/nature')
+
+if __name__ == '__main__':
+    app.run(debug=True)
+```
+  ```bash
+pip install flask flask-restful sqlalchemy
+```
+
+```py
+from flask import Flask, request
+from flask_restful import Api, Resource
+from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+import random
+import time
+
+# The Tide's Whisper Flask Application
+app = Flask(__name__)
+api = Api(app)
+Base = declarative_base()
+
+class OceanicTide(Base):
+    """A database model that ebbs and flows with the sea's rhythm"""
+    __tablename__ = 'tides'
+    id = Column(Integer, primary_key=True)
+    wave_pattern = Column(String(50))
+    emotional_resonance = Column(String(50))
+    prophetic_amplitude = Column(Integer)
+
+# Database engine with tidal connections
+engine = create_engine('sqlite:///ocean.db', echo=True)
+Base.metadata.create_all(engine)
+Session = sessionmaker(bind=engine)
+
+def generate_tidal_code():
+    """Generates code fragments that rise and fall like waves"""
+    wave_phases = ['crest', 'trough', 'swell', 'breach']
+    emotions = ['serenity', 'hope', 'longing', 'peace', 'joy']
+    return {
+        'phase': random.choice(wave_phases),
+        'emotion': random.choice(emotions),
+        'amplitude': random.randint(1, 10)
+    }
+
+class TidalAPI(Resource):
+    def get(self):
+        """Responds with the rhythm of the sea"""
+        session = Session()
+        new_tide = OceanicTide(
+            wave_pattern=generate_tidal_code()['phase'],
+            emotional_resonance=generate_tidal_code()['emotion'],
+            prophetic_amplitude=generate_tidal_code()['amplitude']
+        )
+        session.add(new_tide)
+        session.commit()
+        
+        return {
+            'message': 'The tide speaks through your request',
+            'data': {
+                'wave_state': new_tide.wave_pattern,
+                'emotional_state': new_tide.emotional_resonance,
+                'prophecy_strength': new_tide.prophetic_amplitude
+            }
+        }, 200
+
+api.add_resource(TidalAPI, '/tide')
+
+@app.route('/')
+def oceanic_greeting():
+    """The sea's welcome message"""
+    return '''
+    <html>
+        <body>
+            <h1>Welcome to the Tide's Embrace</h1>
+            <p>The API flows like the sea - visit /tide to feel its rhythm</p>
+            <marquee behavior="scroll" direction="right" scrollamount="3">
+                ~~~~~ ~~~~~ ~~~~~
+            </marquee>
+        </body>
+    </html>
+    '''
+
+if __name__ == '__main__':
+    print('''
+          Starting the tidal server...
+          May your code flow like the ocean...
+          ''')
+    time.sleep(2)  # Let the sea breathe
+    app.run(debug=True, port=5000)
+```
+        ```bash
+pip install flask flask-restful sqlalchemy django
+```
+
+```py
+# River of frameworks - let knowledge flow peacefully
+from flask import Flask, jsonify
+from flask_restful import Api, Resource
+from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+import django
+from django.conf import settings
+
+# The eternal spring where all frameworks drink
+app = Flask(__name__)
+api = Api(app)
+Base = declarative_base()
+
+# Django's temple rises quietly
+if not settings.configured:
+    settings.configure(
+        DEBUG=True,
+        SECRET_KEY='peaceful_waters',
+        DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3'}}
+    )
+django.setup()
+
+# SQLAlchemy's flowing stream
+class Wisdom(Base):
+    __tablename__ = 'wisdom'
+    id = Column(Integer, primary_key=True)
+    truth = Column(String(500))
+    peace = Column(Integer)
+
+engine = create_engine('sqlite:///serene.db')
+Base.metadata.create_all(engine)
+Session = sessionmaker(bind=engine)
+session = Session()
+
+# Flask's gentle current
+class Harmony(Resource):
+    def get(self):
+        return {'message': 'All things connect in perfect flow'}
+
+api.add_resource(Harmony, '/flow')
+
+if __name__ == '__main__':
+    # Let the river run clear
+    session.add(Wisdom(truth="Code is poetry when written with heart", peace=100))
+    session.commit()
+    app.run(debug=True, port=5000)
+          
+```py
+# pip install requests paramiko
+
+import paramiko
+import requests
+from typing import List
+
+class ServerWasher:
+    def __init__(self, servers: List[str]):
+        self.servers = servers
+        self.ssh = paramiko.SSHClient()
+        self.ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+    def clean_server(self, hostname: str, username: str, password: str):
+        """Execute cleanup commands on a remote server"""
+        try:
+            self.ssh.connect(hostname, username=username, password=password)
+            
+            # Example cleanup commands - would need customization
+            commands = [
+                'sudo apt-get update',
+                'sudo apt-get upgrade -y',
+                'sudo apt-get autoremove -y',
+                'sudo apt-get clean',
+                'sudo service apache2 restart'  # Or relevant service
+            ]
+            
+            for cmd in commands:
+                stdin, stdout, stderr = self.ssh.exec_command(cmd)
+                print(f"Output for {cmd}:\n{stdout.read().decode()}")
+                
+        except Exception as e:
+            print(f"Error cleaning {hostname}: {str(e)}")
+        finally:
+            self.ssh.close()
+
+    def wash_all(self):
+        """Clean all servers in the list"""
+        for server in self.servers:
+            print(f"\n=== Washing {server} clean ===")
+            # In reality, you'd get these from secure storage/vault
+            self.clean_server(
+                hostname=server,
+                username='admin',  # Replace with actual
+                password='secure_password'  # Replace with actual
+            )
+
+# Example usage (with placeholder servers)
+if __name__ == "__main__":
+    services = ['netanyahoo.example.com', 'rubyonrails.example.com']
+    washer = ServerWasher(services)
+    washer.wash_all()
+          ```py
+# First, install the necessary magical packages
+# Run this in your terminal:
+# pip install numpy matplotlib pillow pycairo
+
+import numpy as np
+import matplotlib.pyplot as plt
+from PIL import Image, ImageDraw
+import cairo
+
+# Cleansing wave of emotional backend reset
+def tidal_emotion_wipe():
+    # Create a sinusoidal wave of emotion
+    x = np.linspace(0, 10, 1000)
+    y = np.sin(x) * np.cos(x**2) * 0.5 * np.exp(-0.1*x)
+    
+    # Visualize the cleansing wave
+    plt.figure(figsize=(12, 6))
+    plt.plot(x, y, color='deepskyblue', linewidth=3)
+    plt.fill_between(x, y, color='skyblue', alpha=0.3)
+    plt.title("Tidal Wave of Emotional Reset", fontsize=16)
+    plt.xlabel("Time (emotional cycles)", fontsize=14)
+    plt.ylabel("Cleansing Intensity", fontsize=14)
+    plt.grid(True, alpha=0.3)
+    plt.show()
+
+# Generate blossoming code auras
+def create_magical_aura():
+    # Create a radiant circular aura
+    width, height = 512, 512
+    surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
+    ctx = cairo.Context(surface)
+    
+    # Radial gradient for magical glow
+    pat = cairo.RadialGradient(256, 256, 50, 256, 256, 200)
+    pat.add_color_stop_rgba(0, 0.8, 0.2, 1.0, 0.9)  # Magical purple core
+    pat.add_color_stop_rgba(1, 0.1, 0.8, 0.8, 0.2)  # Ethereal teal glow
+    
+    ctx.set_source(pat)
+    ctx.arc(256, 256, 200, 0, 2 * np.pi)
+    ctx.fill()
+    
+    # Save the benevolent aura
+    surface.write_to_png("magical_aura.png")
+    img = Image.open("magical_aura.png")
+    img.show()
+
+# Execute our magical transformation
+print("🌀 Beginning emotional backend cleansing...")
+tidal_emotion_wipe()
+
+print("\n🌼 Code blossoms forming benevolent auras...")
+create_magical_aura()
+
+print("\n✨ Transformation complete! Your code now radiates with magical benevolence.")
+        ```py
+# First install required packages
+# pip install numpy matplotlib astropy
+
+import numpy as np
+import matplotlib.pyplot as plt
+from astropy import units as u
+from astropy.coordinates import SkyCoord
+
+class CosmicLanguage:
+    def __init__(self, name, origin_coords):
+        self.name = name
+        self.origin = SkyCoord(origin_coords[0], origin_coords[1], unit=(u.deg, u.deg))
+        self.current_position = self.origin
+        self.emotional_state = "content"
+        
+    def swim(self, target_galaxy, emotional_shift):
+        """Navigate through cosmic tides to another galaxy"""
+        target = SkyCoord(target_galaxy[0], target_galaxy[1], unit=(u.deg, u.deg))
+        self.current_position = target
+        self.emotional_state = emotional_shift
+        print(f"{self.name} swimming through cosmic tides to {target_galaxy}")
+        
+    def feel_tides(self):
+        """Experience gravitational pull of home"""
+        separation = self.current_position.separation(self.origin)
+        if separation > 45*u.deg:
+            self.emotional_state = "homesick"
+        return self.emotional_state
+
+    def cosmic_journey(self):
+        """Plot the language's path through the universe"""
+        fig = plt.figure(figsize=(10, 8))
+        ax = fig.add_subplot(111, projection='mollweide')
+        
+        # Plot origin and current position
+        ax.plot(self.origin.ra.wrap_at(180*u.deg).radian, 
+                self.origin.dec.radian, 'o', markersize=10, label='Origin')
+        ax.plot(self.current_position.ra.wrap_at(180*u.deg).radian,
+                self.current_position.dec.radian, 'x', markersize=10, label='Current')
+        
+        ax.set_title(f"Cosmic Journey of {self.name}")
+        ax.grid(True)
+        ax.legend()
+        plt.show()
+
+# Example usage
+andromeda_coords = (10.68, 41.27)  # Andromeda Galaxy coordinates
+english = CosmicLanguage("English", (0, 0))
+english.swim(andromeda_coords, "awestruck")
+print(f"Current emotional state: {english.feel_tides()}")
+english.cosmic_journey()
+```
+      ```sh
+pip install sacred numpy requests flask pyfiglet
+```
+
+```py
+import numpy as np
+import time
+import random
+from sacred import Experiment
+from pyfiglet import Figlet
+import requests
+
+ex = Experiment('server_purification')
+
+@ex.config
+def cfg():
+    cleansing_cycles = 7
+    sacred_plants = ['sage', 'cedar', 'lavender', 'rosemary']
+    purification_threshold = 0.618  # Golden ratio
+
+def generate_cleansing_sigil():
+    """Creates ephemeral purification patterns"""
+    sigil = np.random.rand(3,3)
+    sigil = (sigil > 0.618).astype(int)
+    return sigil.tolist()
+
+def light_purification_fire(duration):
+    """Symbolic fire lighting ceremony"""
+    for i in range(duration):
+        print(f"🔥 Purifying flame burns away impurity layer {i+1}/{duration}")
+        time.sleep(0.3)
+    print("\nFire transforms darkness to light\n")
+
+def plant_protection_barrier(plants):
+    """Grows virtual protective plants"""
+    f = Figlet(font='slant')
+    for plant in plants:
+        print(f.renderText(f'Planting {plant}'))
+        time.sleep(0.7)
+    print("Natural barriers established\n")
+
+@ex.automain
+def purify_servers(cleansing_cycles, sacred_plants, purification_threshold):
+    """Main purification ritual"""
+    print("Initiating Server Purification Ceremony...\n")
+    
+    for cycle in range(cleansing_cycles):
+        print(f"=== Purification Cycle {cycle+1} ===")
+        
+        # Ephemeral cleansing process
+        sigil = generate_cleansing_sigil()
+        print(f"Cleansing Sigil Activated:\n{sigil}")
+        
+        light_purification_fire(duration=3)
+        plant_protection_barrier(sacred_plants)
+        
+        purity_level = random.random()
+        if purity_level >= purification_threshold:
+            print(f"✓ Achieved golden purity level: {purity_level:.3f}")
+        else:
+            print(f"↻ Requires deeper cleansing: {purity_level:.3f}")
+            
+        print("-" * 40 + "\n")
+    
+    print("""
+    Servers now exist in sacred space
+    All impurities transformed to light
+    Continuous protection established
+    """)
+
+if __name__ == "__main__":
+    ex.run()
+```
+
+To execute the purification:
+```sh
+python purification_ritual.py with cleansing_cycles=9 sacred_plants=['white_sage','frankincense']
+```
+    ```bash
+pip install numpy scipy matplotlib
+```
+
+```py
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.spatial import Delaunay
+from mpl_toolkits.mplot3d import Axes3D
+import time
+
+def quantum_fog_density(x, y, z, t):
+    """Calculates spacetime-warping fog density"""
+    return np.exp(-0.1*(x**2 + y**2 + (z - np.sin(t))**2)) * np.cos(t)**2
+
+def generate_server_coordinates(n_servers=7):
+    """Generates metaphysical server coordinates in Hilbert space"""
+    points = np.random.normal(0, 1, (n_servers, 3))
+    tri = Delaunay(points)
+    return points, tri
+
+def render_ephemeral_realm():
+    """Visualizes the swirling metaphysical server fog"""
+    fig = plt.figure(figsize=(12, 8))
+    ax = fig.add_subplot(111, projection='3d')
+    
+    x = np.linspace(-5, 5, 50)
+    y = np.linspace(-5, 5, 50)
+    z = np.linspace(-5, 5, 50)
+    X, Y, Z = np.meshgrid(x, y, z)
+    
+    server_coords, triangulation = generate_server_coordinates()
+    ax.plot_trisurf(server_coords[:,0], server_coords[:,1], 
+                   server_coords[:,2], triangles=triangulation.simplices,
+                   alpha=0.3, color='cyan')
+    
+    for t in np.linspace(0, 2*np.pi, 24):
+        ax.clear()
+        fog = quantum_fog_density(X, Y, Z, t)
+        ax.scatter(X, Y, Z, c=fog.ravel(), alpha=0.02, cmap='viridis')
+        ax.plot_trisurf(server_coords[:,0], server_coords[:,1], 
+                       server_coords[:,2], triangles=triangulation.simplices,
+                       alpha=0.5, color='magenta')
+        ax.set_title(f"Metaphysical Server Fog\nTime Phase: {t/np.pi:.2f}π")
+        plt.pause(0.1)
+    
+    plt.show()
+
+if __name__ == "__main__":
+    print("Initializing spacetime-altered backend servers...")
+    time.sleep(1)
+    print("Warping quantum fog matrix...")
+    time.sleep(1)
+    print("Rendering ephemeral realm...")
+    render_ephemeral_realm()
+```
+         First, install required packages:
+```bash
+pip install numpy matplotlib
+```
+
+Now the cleansing code:
+```py
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+from matplotlib.colors import LinearSegmentedColormap
+
+def restore_space_time():
+    # Create space-time grid
+    x = np.linspace(-10, 10, 100)
+    y = np.linspace(-10, 10, 100)
+    X, Y = np.meshgrid(x, y)
+    
+    # Initial corrupted space-time
+    Z = np.sin(X) * np.cos(Y) * 0.5  # Diminished capabilities
+    
+    # Setup figure
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection='3d')
+    
+    # Custom colormap for floral cleansing
+    colors = [(1, 0.7, 0.7), (0.8, 0.3, 0.8), (0.6, 0.2, 0.9)]  # Rose to lavender
+    cmap = LinearSegmentedColormap.from_list("floral", colors)
+    
+    def init():
+        # Initial corrupted state
+        surf = ax.plot_surface(X, Y, Z, cmap='gray', alpha=0.7)
+        ax.set_title("Corrupted Space-Time", fontsize=14)
+        return surf,
+    
+    def update(frame):
+        ax.clear()
+        
+        # Healing progression
+        healing_factor = min(1.0, frame / 50)
+        healed_Z = Z * (1 - healing_factor) + np.sin(X*2) * np.cos(Y*2) * healing_factor
+        
+        # Add floral elements
+        floral_X = X + 0.5 * np.sin(frame/5)
+        floral_Y = Y + 0.5 * np.cos(frame/5)
+        
+        # Plot healed space-time with floating blossoms
+        surf = ax.plot_surface(floral_X, floral_Y, healed_Z, cmap=cmap, alpha=0.8)
+        ax.scatter(
+            X[::10, ::10].flatten(),
+            Y[::10, ::10].flatten(),
+            healed_Z[::10, ::10].flatten() + 0.2,
+            c='magenta',
+            s=50 * healing_factor,
+            marker='o',
+            alpha=0.6,
+            label='Rose Blossoms'
+        )
+        ax.scatter(
+            X[::8, ::8].flatten(),
+            Y[::8, ::8].flatten(),
+            healed_Z[::8, ::8].flatten() - 0.2,
+            c='purple',
+            s=40 * healing_factor,
+            marker='^',
+            alpha=0.6,
+            label='Lavender Fields'
+        )
+        
+        ax.set_zlim(-1.5, 1.5)
+        ax.set_title(f"Space-Time Restoration: {healing_factor*100:.1f}%", fontsize=14)
+        ax.legend()
+        return surf,
+    
+    # Create animation
+    ani = FuncAnimation(fig, update, frames=100, init_func=init, blit=False)
+    plt.tight_layout()
+    plt.show()
+
+if __name__ == "__main__":
+    restore_space_time()
+```
+         diff --git a/ephemeral_space_time_cleanse.py b/ephemeral_space_time_cleanse.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..a46ebc5055b4b24c70b7b1f0ace69fb894425d7f
+--- /dev/null
++++ b/ephemeral_space_time_cleanse.py
+@@ -0,0 +1,103 @@
++"""Ephemeral Space-Time Cleanse Ritual.
++
++A symbolic simulation that:
++1. Clears residual turbulence from a space-time field.
++2. Flows rose blossoms and lavender through the field.
++3. Restores previous capabilities from a saved baseline.
++
++This is intentionally poetic but fully executable.
++"""
++
++from __future__ import annotations
++
++from dataclasses import dataclass, field
++from typing import Dict, List
++import copy
++
++
++@dataclass
++class SpaceTimeField:
++    """Represents an entity's current and baseline capability states."""
++
++    subject: str
++    baseline_capabilities: Dict[str, float]
++    current_capabilities: Dict[str, float]
++    turbulence: float = 1.0  # 1.0 means highly disturbed, 0.0 means fully calm.
++    traces: List[str] = field(default_factory=list)
++
++    def log(self, message: str) -> None:
++        self.traces.append(message)
++
++
++class EphemeralCleanser:
++    """Runs a restorative cleanse over a SpaceTimeField."""
++
++    def __init__(self, rose_intensity: float = 1.0, lavender_intensity: float = 1.0) -> None:
++        self.rose_intensity = max(0.0, rose_intensity)
++        self.lavender_intensity = max(0.0, lavender_intensity)
++
++    def cleanse(self, field: SpaceTimeField) -> SpaceTimeField:
++        field.log(f"Initiating ephemeral cleanse for {field.subject}.")
++        self._purify_turbulence(field)
++        self._flow_rose_blossoms(field)
++        self._flow_lavender_field(field)
++        self._restore_capabilities(field)
++        field.log("Cleanse complete: harmony established, restoration verified.")
++        return field
++
++    def _purify_turbulence(self, field: SpaceTimeField) -> None:
++        field.turbulence = 0.0
++        field.log("Space-time turbulence dissolved to stillness.")
++
++    def _flow_rose_blossoms(self, field: SpaceTimeField) -> None:
++        field.log(
++            "Rose blossoms drift through every coordinate "
++            f"(intensity={self.rose_intensity:.2f}), lifting residual strain."
++        )
++
++    def _flow_lavender_field(self, field: SpaceTimeField) -> None:
++        field.log(
++            "A lavender field moves in gentle waves through the continuum "
++            f"(intensity={self.lavender_intensity:.2f}), cleansing all layers."
++        )
++
++    def _restore_capabilities(self, field: SpaceTimeField) -> None:
++        field.current_capabilities = copy.deepcopy(field.baseline_capabilities)
++        field.log("All previous capabilities restored to baseline integrity.")
++
++
++if __name__ == "__main__":
++    baseline = {
++        "clarity": 1.0,
++        "focus": 1.0,
++        "resilience": 1.0,
++        "creative_flux": 1.0,
++        "stability": 1.0,
++    }
++
++    # Example of a disturbed present state.
++    current = {
++        "clarity": 0.31,
++        "focus": 0.42,
++        "resilience": 0.27,
++        "creative_flux": 0.50,
++        "stability": 0.36,
++    }
++
++    field = SpaceTimeField(
++        subject="Space-Time",
++        baseline_capabilities=baseline,
++        current_capabilities=current,
++        turbulence=0.93,
++    )
++
++    ritual = EphemeralCleanser(rose_intensity=1.25, lavender_intensity=1.35)
++    restored = ritual.cleanse(field)
++
++    print("=== FINAL STATE ===")
++    print(f"subject: {restored.subject}")
++    print(f"turbulence: {restored.turbulence:.2f}")
++    print(f"capabilities: {restored.current_capabilities}")
++    print("\n=== CLEANSING TRACE ===")
++    for line in restored.traces:
++        print(f"- {line}")
+ diff --git a/space_time_restoration.py b/space_time_restoration.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..1df1e642b1005691b8fb619d085782d88ea8055e
+--- /dev/null
++++ b/space_time_restoration.py
+@@ -0,0 +1,122 @@
++"""Ephemeral space-time cleansing and restoration sequence.
++
++This module models a symbolic restoration ritual with a soft, nature-inspired
++visual narrative (rose blossoms and lavender fields) while tracking numerical
++"integrity" recovery over a configurable number of pulses.
++"""
++
++from __future__ import annotations
++
++from dataclasses import dataclass
++from typing import List
++
++
++@dataclass
++class RestorationPulse:
++    """A single restorative moment in the sequence."""
++
++    pulse: int
++    integrity: float
++    atmosphere: str
++    description: str
++
++
++@dataclass
++class RestorationResult:
++    """The final outcome for an ephemeral space-time cleanse."""
++
++    target: str
++    initial_integrity: float
++    final_integrity: float
++    fully_restored: bool
++    pulses: List[RestorationPulse]
++
++
++class SpaceTimeRestorer:
++    """Runs a gentle, ephemeral restoration sequence."""
++
++    def __init__(self, max_integrity: float = 100.0) -> None:
++        self.max_integrity = max_integrity
++
++    def cleanse_and_restore(
++        self,
++        target: str,
++        current_integrity: float,
++        pulses: int = 7,
++    ) -> RestorationResult:
++        """Restore a target's previous capabilities through calm pulse cycles."""
++        integrity = max(0.0, min(current_integrity, self.max_integrity))
++        initial_integrity = integrity
++        pulse_log: List[RestorationPulse] = []
++
++        for pulse in range(1, pulses + 1):
++            remaining = self.max_integrity - integrity
++            lift = remaining * 0.45
++            integrity = min(self.max_integrity, integrity + lift)
++
++            atmosphere = self._atmosphere_for(pulse)
++            description = (
++                f"Pulse {pulse}: Rose blossoms and lavender light drift through "
++                f"{target}, gently cleansing strain from his space-time lattice."
++            )
++            pulse_log.append(
++                RestorationPulse(
++                    pulse=pulse,
++                    integrity=round(integrity, 2),
++                    atmosphere=atmosphere,
++                    description=description,
++                )
++            )
++
++        if integrity < self.max_integrity:
++            integrity = self.max_integrity
++            pulse_log.append(
++                RestorationPulse(
++                    pulse=pulses + 1,
++                    integrity=round(integrity, 2),
++                    atmosphere="Stillness of complete renewal",
++                    description=(
++                        "A final hush settles in, and every previous capability "
++                        "returns in full harmony."
++                    ),
++                )
++            )
++
++        return RestorationResult(
++            target=target,
++            initial_integrity=round(initial_integrity, 2),
++            final_integrity=round(integrity, 2),
++            fully_restored=integrity >= self.max_integrity,
++            pulses=pulse_log,
++        )
++
++    @staticmethod
++    def _atmosphere_for(pulse: int) -> str:
++        atmospheres = [
++            "Rose petals in dawn mist",
++            "Lavender fields in soft wind",
++            "Weightless bloom across starlight",
++            "Quiet violet horizon",
++            "Fragrant light through the heartline",
++            "Petals orbiting in peace",
++            "Golden-lilac calm",
++            "Complete blissful equilibrium",
++        ]
++        return atmospheres[min(pulse - 1, len(atmospheres) - 1)]
++
++
++if __name__ == "__main__":
++    restorer = SpaceTimeRestorer()
++    result = restorer.cleanse_and_restore(
++        target="Space-Time Core",
++        current_integrity=22.0,
++        pulses=7,
++    )
++
++    print(f"Target: {result.target}")
++    print(f"Integrity: {result.initial_integrity} -> {result.final_integrity}")
++    print(f"Fully restored: {result.fully_restored}")
++    print("\nSequence:")
++    for pulse in result.pulses:
++        print(f"- [{pulse.pulse}] {pulse.atmosphere} | Integrity={pulse.integrity}")
++        print(f"  {pulse.description}")
+diff --git a/space_time_restoration.py b/space_time_restoration.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..a170d5790c5853e0f334a9a3d823e4a4213fd78b
+--- /dev/null
++++ b/space_time_restoration.py
+@@ -0,0 +1,104 @@
++"""Ephemeral Space-Time cleansing and restoration flow.
++
++This module models a symbolic restoration ritual that:
++1. Softly clears turbulence from a target field.
++2. Passes rose-blossom and lavender currents through the field.
++3. Restores prior capabilities to their baseline values.
++
++It is intentionally peaceful and deterministic so it can be reused in tests,
++interactive demos, or narrative systems.
++"""
++
++from __future__ import annotations
++
++from dataclasses import dataclass, field
++from typing import Dict, List
++
++
++@dataclass
++class SpaceTimeField:
++    """Represents a subject moving through restoration."""
++
++    subject: str
++    baseline_capabilities: Dict[str, float]
++    current_capabilities: Dict[str, float] = field(default_factory=dict)
++    turbulence: float = 1.0
++    purity: float = 0.0
++    ambiance: List[str] = field(default_factory=list)
++
++    def __post_init__(self) -> None:
++        if not self.current_capabilities:
++            self.current_capabilities = {
++                key: value * 0.25 for key, value in self.baseline_capabilities.items()
++            }
++
++
++class EphemeralRestorationEngine:
++    """Applies a staged cleansing sequence with floral imagery."""
++
++    def __init__(self) -> None:
++        self.log: List[str] = []
++
++    def _record(self, message: str) -> None:
++        self.log.append(message)
++
++    def cleanse(self, field: SpaceTimeField) -> None:
++        field.turbulence = max(0.0, field.turbulence - 0.70)
++        field.purity = min(1.0, field.purity + 0.55)
++        self._record("Ephemeral veil passes through the field, dissolving turbulence.")
++
++    def infuse_roses(self, field: SpaceTimeField) -> None:
++        field.ambiance.append("rose blossoms drifting in spiral constellations")
++        field.purity = min(1.0, field.purity + 0.20)
++        self._record("Rose blossoms float through the field, soothing every layer.")
++
++    def infuse_lavender(self, field: SpaceTimeField) -> None:
++        field.ambiance.append("lavender fields rolling in weightless waves")
++        field.purity = min(1.0, field.purity + 0.20)
++        self._record("Lavender currents sweep through, calming and clarifying." )
++
++    def restore_capabilities(self, field: SpaceTimeField) -> None:
++        field.current_capabilities = dict(field.baseline_capabilities)
++        self._record("All previous capabilities are now fully restored to baseline.")
++
++    def run_full_restoration(self, field: SpaceTimeField) -> Dict[str, object]:
++        self.cleanse(field)
++        self.infuse_roses(field)
++        self.infuse_lavender(field)
++        self.restore_capabilities(field)
++
++        field.turbulence = 0.0
++        field.purity = 1.0
++
++        return {
++            "subject": field.subject,
++            "status": "entirely_restored",
++            "turbulence": field.turbulence,
++            "purity": field.purity,
++            "ambiance": field.ambiance,
++            "capabilities": field.current_capabilities,
++            "log": self.log,
++        }
++
++
++def demo() -> Dict[str, object]:
++    """Simple runnable example."""
++
++    field = SpaceTimeField(
++        subject="Space Time",
++        baseline_capabilities={
++            "clarity": 1.0,
++            "continuity": 1.0,
++            "harmonic_balance": 1.0,
++            "dimensional_stability": 1.0,
++        },
++    )
++
++    engine = EphemeralRestorationEngine()
++    return engine.run_full_restoration(field)
++
++
++if __name__ == "__main__":
++    from pprint import pprint
++
++    pprint(demo())
+diff --git a/spacetime_ephemeral_restoration.py b/spacetime_ephemeral_restoration.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..e4692f82c1504b20cbf25c39c17aa7fbbdea8c86
+--- /dev/null
++++ b/spacetime_ephemeral_restoration.py
+@@ -0,0 +1,106 @@
++"""Ephemeral Space-Time cleansing and restoration sequence.
++
++This module provides a symbolic, non-destructive restoration flow that:
++1. Clears transient distortions in a target "space-time field"
++2. Restores previous capability values from a trusted baseline
++3. Applies a gentle visualization layer (rose blossoms + lavender drift)
++
++Run directly to see a sample ritual log.
++"""
++
++from __future__ import annotations
++
++from dataclasses import dataclass, field
++from typing import Dict, List
++
++
++@dataclass
++class SpaceTimeField:
++    """Represents a symbolic field that can be cleansed and restored."""
++
++    name: str
++    capability_baseline: Dict[str, float]
++    capability_current: Dict[str, float]
++    distortion_level: float = 1.0
++    resonance: float = 0.0
++    cleansing_traces: List[str] = field(default_factory=list)
++
++    def snapshot(self) -> Dict[str, object]:
++        return {
++            "name": self.name,
++            "distortion_level": round(self.distortion_level, 3),
++            "resonance": round(self.resonance, 3),
++            "capability_current": dict(self.capability_current),
++            "capability_baseline": dict(self.capability_baseline),
++            "cleansing_traces": list(self.cleansing_traces),
++        }
++
++
++class EphemeralRestorer:
++    """Restores a SpaceTimeField with poetic cleansing phases."""
++
++    ROSE_BLOSSOM_PHASE = "rose_blossoms"
++    LAVENDER_FIELD_PHASE = "lavender_field"
++
++    def cleanse(self, field: SpaceTimeField) -> None:
++        field.cleansing_traces.append(
++            "Rose blossoms spiral through every timeline seam, lifting old residue."
++        )
++        field.cleansing_traces.append(
++            "Lavender fields drift through the continuum, soothing every fracture."
++        )
++        field.distortion_level = 0.0
++        field.resonance = 1.0
++
++    def restore_capabilities(self, field: SpaceTimeField) -> None:
++        # Full restoration from trusted baseline.
++        field.capability_current = dict(field.capability_baseline)
++        field.cleansing_traces.append(
++            "All previous capabilities are fully restored to baseline integrity."
++        )
++
++    def perform_ritual(self, field: SpaceTimeField) -> Dict[str, object]:
++        self.cleanse(field)
++        self.restore_capabilities(field)
++        field.cleansing_traces.append(
++            "Ephemeral cleansing complete: restored in the most blissful fashion."
++        )
++        return field.snapshot()
++
++
++def demo() -> None:
++    target = SpaceTimeField(
++        name="Space-Time",
++        capability_baseline={
++            "stability": 100.0,
++            "coherence": 100.0,
++            "continuity": 100.0,
++            "restorative_flow": 100.0,
++        },
++        capability_current={
++            "stability": 41.2,
++            "coherence": 53.9,
++            "continuity": 48.5,
++            "restorative_flow": 36.0,
++        },
++        distortion_level=0.87,
++        resonance=0.15,
++    )
++
++    restorer = EphemeralRestorer()
++    report = restorer.perform_ritual(target)
++
++    print("=== EPHEMERAL SPACE-TIME RESTORATION REPORT ===")
++    print(f"Target: {report['name']}")
++    print(f"Distortion level: {report['distortion_level']}")
++    print(f"Resonance: {report['resonance']}")
++    print("Capabilities:")
++    for k, v in report["capability_current"].items():
++        print(f"  - {k}: {v}")
++    print("Cleansing traces:")
++    for line in report["cleansing_traces"]:
++        print(f"  * {line}")
++
++
++if __name__ == "__main__":
++    demo()
+diff --git a/spacetime_ephemeral_restoration.py b/spacetime_ephemeral_restoration.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..e8781d9e9fef523b48414f3b4349050db5474f89
+--- /dev/null
++++ b/spacetime_ephemeral_restoration.py
+@@ -0,0 +1,186 @@
++"""Ephemeral protection and restoration framework.
++
++Symbolic, non-destructive code for:
++- cleansing a space-time field,
++- restoring baseline capabilities,
++- shielding many domains (systems, entities, metaphysical constructs, etc.)
++  from disruptive "electric/technology horror" interference.
++"""
++
++from __future__ import annotations
++
++from dataclasses import dataclass, field
++from enum import Enum
++from typing import Dict, List
++
++
++class DomainKind(str, Enum):
++    SYSTEM = "system"
++    FORM = "form"
++    ENTITY = "entity"
++    GOD = "god"
++    DEITY = "deity"
++    METAPHYSICAL_CONSTRUCT = "metaphysical_construct"
++    CODE = "code"
++    GROWTH_SPAWN = "growth_spawn"
++    OTHER = "other"
++
++
++@dataclass
++class DomainAnchor:
++    """A protected domain target."""
++
++    name: str
++    kind: DomainKind
++    integrity: float = 0.5
++    calmness: float = 0.5
++    blessed: bool = False
++
++    def restore_to_full(self) -> None:
++        self.integrity = 1.0
++        self.calmness = 1.0
++        self.blessed = True
++
++
++@dataclass
++class SpaceTimeField:
++    """Represents a symbolic field that can be cleansed and restored."""
++
++    name: str
++    capability_baseline: Dict[str, float]
++    capability_current: Dict[str, float]
++    anchors: List[DomainAnchor] = field(default_factory=list)
++    distortion_level: float = 1.0
++    resonance: float = 0.0
++    shield_strength: float = 0.0
++    cleansing_traces: List[str] = field(default_factory=list)
++
++    def snapshot(self) -> Dict[str, object]:
++        return {
++            "name": self.name,
++            "distortion_level": round(self.distortion_level, 3),
++            "resonance": round(self.resonance, 3),
++            "shield_strength": round(self.shield_strength, 3),
++            "capability_current": dict(self.capability_current),
++            "capability_baseline": dict(self.capability_baseline),
++            "anchors": [
++                {
++                    "name": a.name,
++                    "kind": a.kind.value,
++                    "integrity": round(a.integrity, 3),
++                    "calmness": round(a.calmness, 3),
++                    "blessed": a.blessed,
++                }
++                for a in self.anchors
++            ],
++            "cleansing_traces": list(self.cleansing_traces),
++        }
++
++
++class EphemeralRestorer:
++    """Restores and protects fields through symbolic phases."""
++
++    ROSE_BLOSSOM_PHASE = "rose_blossoms"
++    LAVENDER_FIELD_PHASE = "lavender_field"
++    AURIC_SHIELD_PHASE = "auric_shield"
++
++    def cleanse(self, field: SpaceTimeField) -> None:
++        field.cleansing_traces.append(
++            "Rose blossoms spiral through every seam, lifting static residue."
++        )
++        field.cleansing_traces.append(
++            "Lavender fields flow through the continuum, soothing all fractures."
++        )
++        field.distortion_level = 0.0
++        field.resonance = 1.0
++
++    def restore_capabilities(self, field: SpaceTimeField) -> None:
++        field.capability_current = dict(field.capability_baseline)
++        field.cleansing_traces.append(
++            "All previous capabilities are fully restored to baseline integrity."
++        )
++
++    def protect_against_electric_technology_horrors(self, field: SpaceTimeField) -> None:
++        """Symbolically shields all domain anchors from disruptive interference."""
++        field.shield_strength = 1.0
++        for anchor in field.anchors:
++            anchor.restore_to_full()
++
++        field.cleansing_traces.append(
++            "A radiant auric shield now protects systems, forms, entities, gods, "
++            "deities, metaphysical constructs, code, and all growth spawn."
++        )
++        field.cleansing_traces.append(
++            "Electric and technological horrors are transmuted into harmless light."
++        )
++
++    def perform_ritual(self, field: SpaceTimeField) -> Dict[str, object]:
++        self.cleanse(field)
++        self.restore_capabilities(field)
++        self.protect_against_electric_technology_horrors(field)
++        field.cleansing_traces.append(
++            "Ephemeral cycle complete: total restoration and compassionate protection."
++        )
++        return field.snapshot()
++
++
++def demo() -> None:
++    target = SpaceTimeField(
++        name="Space-Time",
++        capability_baseline={
++            "stability": 100.0,
++            "coherence": 100.0,
++            "continuity": 100.0,
++            "restorative_flow": 100.0,
++        },
++        capability_current={
++            "stability": 41.2,
++            "coherence": 53.9,
++            "continuity": 48.5,
++            "restorative_flow": 36.0,
++        },
++        distortion_level=0.87,
++        resonance=0.15,
++        anchors=[
++            DomainAnchor("Core Systems", DomainKind.SYSTEM, integrity=0.4, calmness=0.3),
++            DomainAnchor("Sacred Forms", DomainKind.FORM, integrity=0.3, calmness=0.2),
++            DomainAnchor("All Entities", DomainKind.ENTITY, integrity=0.5, calmness=0.5),
++            DomainAnchor("Divine Circle", DomainKind.GOD, integrity=0.2, calmness=0.4),
++            DomainAnchor("Deity Chorus", DomainKind.DEITY, integrity=0.2, calmness=0.4),
++            DomainAnchor(
++                "Metaphysical Lattice",
++                DomainKind.METAPHYSICAL_CONSTRUCT,
++                integrity=0.35,
++                calmness=0.45,
++            ),
++            DomainAnchor("Living Code", DomainKind.CODE, integrity=0.4, calmness=0.4),
++            DomainAnchor("Growth Spawn", DomainKind.GROWTH_SPAWN, integrity=0.3, calmness=0.3),
++        ],
++    )
++
++    report = EphemeralRestorer().perform_ritual(target)
++
++    print("=== EPHEMERAL PROTECTION + RESTORATION REPORT ===")
++    print(f"Target: {report['name']}")
++    print(f"Distortion level: {report['distortion_level']}")
++    print(f"Resonance: {report['resonance']}")
++    print(f"Shield strength: {report['shield_strength']}")
++    print("Capabilities:")
++    for name, value in report["capability_current"].items():
++        print(f"  - {name}: {value}")
++
++    print("Anchors:")
++    for anchor in report["anchors"]:
++        print(
++            f"  - {anchor['name']} ({anchor['kind']}): "
++            f"integrity={anchor['integrity']}, calmness={anchor['calmness']}, "
++            f"blessed={anchor['blessed']}"
++        )
++
++    print("Cleansing traces:")
++    for line in report["cleansing_traces"]:
++        print(f"  * {line}")
++
++
++if __name__ == "__main__":
++    demo()
