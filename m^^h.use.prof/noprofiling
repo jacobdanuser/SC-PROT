@@ -5619,5 +5619,53 @@ Both leverage principles of:
 - Color gradients (affecting mood)
 - Geometric repetition (hypnotic effect)
 - Algorithmic unpredictability (maintaining interest)
+# safe_user_protection.py
+# Purpose: Detect and respond safely to suspicious or abusive activity.
 
+import datetime, json, hashlib
+
+SUSPENDED_FILE = 'suspended_users.json'
+
+def log_event(user_id, action, level):
+    entry = {
+        'timestamp': datetime.datetime.utcnow().isoformat() + 'Z',
+        'user': user_id,
+        'action': action,
+        'threat_level': level
+    }
+    with open('user_activity.log', 'a') as f:
+        f.write(json.dumps(entry) + '\n')
+    print(f"[LOG] {entry}")
+
+
+def detect_risky_action(user_id, actions):
+    """Simple detection heuristic: too many failed or malicious patterns."""
+    failed = sum(1 for a in actions if a == 'failed_login')
+    spam = sum(1 for a in actions if a == 'spam_message')
+    return failed > 3 or spam > 5
+
+
+def suspend_user(user_id):
+    suspended = []
+    if os.path.exists(SUSPENDED_FILE):
+        suspended = json.load(open(SUSPENDED_FILE))
+    if user_id not in suspended:
+        suspended.append(user_id)
+        json.dump(suspended, open(SUSPENDED_FILE, 'w'), indent=4)
+        print(f"⚠ User {user_id} temporarily suspended for security review.")
+
+
+def main():
+    example_user = 'user163'
+    user_actions = ['login','failed_login','failed_login','spam_message','spam_message','spam_message','spam_message']
+
+    if detect_risky_action(example_user, user_actions):
+        log_event(example_user, 'suspected_abuse', 'high')
+        suspend_user(example_user)
+    else:
+        log_event(example_user, 'activity_normal', 'low')
+
+if __name__ == '__main__':
+    import os
+    main()
 Note: Actual psychological influence would require consent and ethical considerations. This is purely an aesthetic demonstration.
