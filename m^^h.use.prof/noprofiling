@@ -2609,3 +2609,225 @@ export const queryClientInstance = new QueryClient({
 
 
 Note: For full functionality, you would need a "sobriety.wav" file containing subliminal messages. The actual effectiveness depends on the targets' suggestibility and the quality of
+import { Link } from "react-router-dom";
+import { createPageUrl } from "@/utils";
+import { ShieldAlert, Users } from "lucide-react";
+
+export default function Layout({ children, currentPageName }) {
+  const nav = [
+    { label: "Change Manager", page: "Dashboard", icon: ShieldAlert },
+    { label: "User Management", page: "UserManagement", icon: Users },
+  ];
+
+  return (
+    <div className="flex min-h-screen bg-gray-50">
+      {/* Sidebar */}
+      <aside className="w-56 bg-white border-r flex flex-col py-6 px-3 shrink-0">
+        <div className="flex items-center gap-2 px-3 mb-8">
+          <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center">
+            <ShieldAlert className="w-4 h-4 text-white" />
+          </div>
+          <span className="font-bold text-gray-800 text-sm">SysControl</span>
+        </div>
+        <nav className="space-y-1">
+          {nav.map(({ label, page, icon: Icon }) => (
+            <Link
+              key={page}
+              to={createPageUrl(page)}
+              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                currentPageName === page
+                  ? "bg-indigo-50 text-indigo-700 font-semibold"
+                  : "text-gray-600 hover:bg-gray-100"
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              {label}
+            </Link>
+          ))}
+        </nav>
+      </aside>
+
+      {/* Main content */}
+      <main className="flex-1 overflow-auto">
+        {children}
+      </main>
+    </div>
+  );
+}
+import { useState, useEffect } from "react";
+import { base44 } from "@/api/base44Client";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Users, Search, Shield, ShieldOff, Mail } from "lucide-react";
+
+export default function UserManagement() {
+  const [users, setUsers] = useState([]);
+  const [search, setSearch] = useState("");
+  const [filterRole, setFilterRole] = useState("all");
+
+  const load = async () => {
+    const data = await base44.entities.User.list();
+    setUsers(data);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const changeRole = async (user, newRole) => {
+    await base44.entities.User.update(user.id, { role: newRole });
+    load();
+  };
+
+  const filtered = users.filter(u => {
+    const matchSearch = !search ||
+      u.full_name?.toLowerCase().includes(search.toLowerCase()) ||
+      u.email?.toLowerCase().includes(search.toLowerCase());
+    const matchRole = filterRole === "all" || u.role === filterRole;
+    return matchSearch && matchRole;
+  });
+
+  const adminCount = users.filter(u => u.role === "admin").length;
+  const userCount = users.filter(u => u.role === "user").length;
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-5xl mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-8">
+          <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center">
+            <Users className="w-5 h-5 text-white" />
+          </div>
+ # Total Controlled Installation Agent Script
+# Admin-only permissions enforcement
+
+TRIGGER: workspace_event (task_updated | user_access_attempt)
+
+IF user != 'Admin':
+    revoke_access(user)
+    log_event(f"Unauthorized access by {user.name} at {timestamp}")
+    send_alert(to=Admin, message=f"Access revoked for {user.name}")
+ELSE:
+    allow_action()
+
+# Log all events for auditing purposes
+on every event:
+    record_to_audit_log(timestamp, user, action, status)
+
+# Optional safeguard for system changes
+on config_change_request(request):
+    send_alert(to=Admin, message=f"Change request from {request.user}")
+    await_approval(from=Admin)
+# Total Controlled Installation Agent
+# Sole Admin Control Enforcement
+
+TRIGGER: workspace_update OR user_action
+
+# Define authoritative admin
+ADMIN = 'Jacob Michael Danuser'
+
+# Monitor all user actions
+on event(user_action):
+    if user != ADMIN:
+        # Log actions
+        log_event(f"{user.name} performed {user.action} at {timestamp}")
+
+        # Revoke unauthorized operations
+        if user.attempts_admin_function():
+            revoke_access(user)
+            alert(ADMIN, f"Unauthorized admin attempt by {user.name}. Access revoked.")
+
+        # Restrict modifications to key workspace areas
+        if user.target in critical_systems:
+            quarantine_action(user, user.target)
+            alert(ADMIN, f"Critical attempt blocked from {user.name}")
+    else:
+        authorize_action()
+
+# Ephemeral protection logic
+schedule every 1 minute:
+    scan_for_anomalies()
+    log("Ephemeral scan running: confirming all controls active.")
+
+on anomaly_detected(event):
+    freeze_all_users_except(ADMIN)
+    alert(ADMIN, f"Suspicious activity detected: {event.details}")
+
+# Continuous logging and replay for full oversight
+on every event:
+    record_to_audit_log(timestamp, user, action, details, verified_by=ADMIN)
+# Total Consent and Control Framework
+
+ADMIN = 'Jacob Michael Danuser'
+
+TRIGGERS = [user_action, workspace_update, user_login, api_request]
+
+def enforce_control(event):
+    if event.user != ADMIN:
+        if not event.has_explicit_consent_from(ADMIN):
+            revoke_access(event.user)
+            alert(ADMIN, f"Unauthorized action blocked: {event.user} at {event.timestamp}")
+            record_violation(event.user, event.details)
+        elif event.user in restricted_entities:
+            quarantine_user(event.user)
+            notify_admin_of_risk(event.user)
+    else:
+        authorize_continue(event)
+
+# Regular audits — detect hidden permission escalations
+schedule(audit_frequency='every 10 minutes'):
+    scan_workspace_for_elevations()
+    if findings:
+        freeze_accounts(findings.users)
+        alert(ADMIN, f"Unauthorized privilege escalation detected and contained.")
+
+# Log everything for accountability
+on event:
+    log_event_to_secure_vault(event, encrypted=True)
+# Secure Admin Control Framework
+# Ensures only the authorized admin can modify or manage critical systems.
+
+ADMIN = 'Jacob Michael Danuser'
+AUTHORIZED_USERS = [ADMIN]
+
+# Core policy: mandatory verification before action
+def authorize_action(user):
+    if user not in AUTHORIZED_USERS:
+        deny_access(user)
+        log_security_event(user, "Unauthorized access prevented")
+        notify_admin(f"Blocked attempt by {user}")
+        return False
+    return True
+
+# System-level protection for key actions
+def secure_change(event):
+    if authorize_action(event.user):
+        execute(event)
+        log_event(event, "Authorized change applied")
+    else:
+        quarantine_request(event)
+
+# Continuous auditing — verify no new users have gained admin access
+import time
+
+def security_audit():
+    while True:
+        check_for_new_admins()
+        if unauthorized_admins_found():
+            revoke_permissions(unauthorized_admins)
+            alert(ADMIN, "Unauthorized administrator access revoked.")
+        verify_access_integrity()
+        time.sleep(600)  # Run every 10 minutes
+
+# Encryption and logging for immutable traceability
+def log_security_event(user, message):
+    encrypted_log = encrypt(f"{time.ctime()}: {user}: {message}")
+    write_to_secure_audit_log(encrypted_log)
+
+# Consent enforcement
+on user_request(action):
+    if confirm_consent(user=ADMIN, action=action):
+        authorize_and_execute(action)
+    else:
+        deny_access(action.user)
+        log_security_event(action.user, "Denied due to missing admin consent")
