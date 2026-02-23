@@ -1,0 +1,2284 @@
+```py
+# pip install required security packages
+# pip install cryptography pyjwt[crypto] python-json-logger pydantic hvac python-keycloak
+
+from typing import Annotated
+from datetime import datetime, timedelta
+from uuid import uuid4
+import json
+import os
+import secrets
+import logging
+from contextlib import contextmanager
+from functools import wraps
+
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.backends import default_backend
+from cryptography.fernet import Fernet, MultiFernet
+from jwt import PyJWTError, encode, decode
+from pydantic import BaseModel, Field, ValidationError
+from pydantic.json import pydantic_encoder
+from logging import LoggerAdapter
+
+# --- Core Security Classes ---
+class SecureConfig(BaseModel):
+    """Immutable configuration with integrity checks"""
+    secret_key: str = Field(min_length=32, regex=r'^[a-zA-Z0-9_-]+$')
+    jwt_algorithm: str = Field(default="HS256", pattern="^(HS256|HS384|HS512|RS256|RS384|RS512|ES256|ES384)$")
+    encryption_rotation_hours: int = Field(default=24, ge=1)
+    access_token_lifetime: int = Field(default=3600, ge=300)
+
+    class Config:
+        frozen = True  # Makes the config immutable
+
+class CryptographicEngine:
+    """Handles all cryptographic operations with key rotation"""
+    def __init__(self, config: SecureConfig):
+        self._current_key = self._derive_key(config.secret_key)
+        self._previous_keys = []
+        self._rotation_interval = timedelta(hours=config.encryption_rotation_hours)
+        self._last_rotation = datetime.utcnow()
+        
+    def _derive_key(self, secret: str) -> bytes:
+        salt = os.urandom(16)
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=salt,
+            iterations=100000,
+            backend=default_backend()
+        )
+        return kdf.derive(secret.encode())
+
+    def rotate_keys(self):
+        if datetime.utcnow() - self._last_rotation > self._rotation_interval:
+            self._previous_keys.append(self._current_key)
+            if len(self._previous_keys) > 2:  # Keep only 2 previous keys
+                self._previous_keys.pop(0)
+            self._current_key = self._derive_key(secrets.token_urlsafe(32))
+            self._last_rotation = datetime.utcnow()
+
+    def encrypt(self, data: str) -> str:
+        self.rotate_keys()
+        f = MultiFernet([Fernet(k) for k in [self._current_key] + self._previous_keys])
+        return f.encrypt(data.encode()).decode()
+
+    def decrypt(self, token: str) -> str:
+        f = MultiFernet([Fernet(k) for k in [self._current_key] + self._previous_keys])
+        return f.decrypt(token.encode()).decode()
+
+class AuditLogger(LoggerAdapter):
+    """Tamper-evident structured logging"""
+    def process(self, msg, kwargs):
+        kwargs.setdefault('extra', {}).update({
+            'audit_id': str(uuid4()),
+            'timestamp': datetime.utcnow().isoformat(),
+            'user': getattr(self.extra, 'user', 'system')
+        })
+        return msg, kwargs
+
+# --- Zero Trust Decorators ---
+def require_auth(scopes: list[str]):
+    """Enforce JWT authentication with required scopes"""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            token = kwargs.get('token')
+            if not token:
+                raise PermissionError("No authentication token provided")
+            
+            try:
+                payload = decode(
+                    token,
+                    config.secret_key,
+                    algorithms=[config.jwt_algorithm]
+                )
+                if not all(scope in payload.get('scopes', []) for scope in scopes):
+                    raise PermissionError("Insufficient privileges")
+                
+                kwargs['user'] = payload['sub']
+                return func(*args, **kwargs)
+            except PyJWTError as e:
+                raise PermissionError(f"Invalid token: {str(e)}")
+        return wrapper
+    return decorator
+
+def sanitize_input(model: type[BaseModel]):
+    """Validate and sanitize all inputs against Pydantic model"""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*
+        ```bash
+pip install hvac python-jose[cryptography] cryptography boto3 pyjwt
+```
+
+Here's a Python implementation adhering to the master-protection doctrine:
+
+```py
+import os
+import time
+import hvac
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from jose import jws
+from jose.constants import ALGORITHMS
+import boto3
+import jwt
+from datetime import datetime, timedelta
+
+class MasterVault:
+    """Hardened interface to secret management system"""
+    def __init__(self):
+        self.client = hvac.Client(
+            url=os.getenv('VAULT_ADDR'),
+            token=os.getenv('VAULT_TOKEN'),
+            namespace='master'
+        )
+        self.auth_tokens = {}
+        self.audit_log = []
+
+    def generate_ephemeral_token(self, role, ttl=300):
+        """Generate short-lived token with scoped privileges"""
+        if role not in ['key-rotation', 'emergency-recovery', 'audit-review']:
+            raise ValueError("Invalid master role")
+        
+        # Require MFA
+        if not self._verify_mfa():
+            raise PermissionError("MFA verification failed")
+            
+        token = self.client.auth.token.create(
+            policies=[f'master-{role}'],
+            ttl=ttl,
+            explicit_max_ttl=ttl+60
+        )
+        self.auth_tokens[token['auth']['client_token']] = {
+            'role': role,
+            'expires': time.time() + ttl
+        }
+        self._log_audit('token_issue', role)
+        return token['auth']['client_token']
+
+    def _verify_mfa(self):
+        """Mock MFA verification"""
+        # In prod: Integrate with Duo/Yubikey/etc
+        return True
+
+    def get_master_key(self, key_name, token):
+        """Retrieve master key with proper auth"""
+        if not self._validate_token(token):
+            raise PermissionError("Invalid or expired token")
+        
+        self._log_audit('key_access', key_name, token)
+        response = self.client.secrets.transit.read_key(
+            name=key_name
+        )
+        return response['data']['keys']
+
+    def _validate_token(self, token):
+        """Check token validity"""
+        if token not in self.auth_tokens:
+            return False
+        if time.time() > self.auth_tokens[token]['expires']:
+            del self.auth_tokens[token]
+            return False
+        return True
+
+    def _log_audit(self, action, subject, token=None):
+        """Immutable audit logging"""
+        entry = {
+            'timestamp': datetime.utcnow().isoformat(),
+            'action': action,
+            'subject': subject,
+            'token': token[:8] + '...' if token else None,
+            'ip': os.getenv('REMOTE_ADDR', '0.0.0.0')
+        }
+        # Hash-chain implementation would go here
+        self.audit_log.append(entry)
+
+
+class CryptoProxy:
+    """Abstracted cryptographic operations without direct master key exposure"""
+    def __init__(self, vault):
+        self.vault = vault
+        self.token = None
+        self.derived_keys = {}
+
+    def authenticate(self, role):
+        """Obtain ephemeral auth token"""
+        self.token = self.vault.generate_ephemeral_token(role)
+        return bool(self.token)
+
+    def derive_operational_key(self, key_id, context):
+        """Derive operational key from master without exposing master"""
+        if not self.token:
+            raise PermissionError("Not authenticated")
+        
+        # Get key derivation parameters from vault
+        derivation_params = self.vault.get_master_key(
+            f'kdf-params/{key_id}', 
+            self.token
+        )
+        
+        # Perform key derivation locally
+        # In prod: Would use proper KDF like HKDF
+        derived_key = f"{key_id}-{context}-{derivation_params['salt']}"
+        self.derived_keys[derived_key] = {
+            'expires': time.time() + 3600,
+            'uses': 0
+        }
+        return derived_key
+
+    def encrypt(self, key_id, plaintext):
+        """Proxy encryption operation"""
+        derived_key = self.derive_operational_key(key
+        #!/usr/bin/env python3
+"""
+perf_statement_generator.py
+
+Generates clear, human-readable performance statements about *your local system*.
+It measures:
+- CPU / RAM / Disk usage snapshots
+- Disk I/O quick test
+- CPU micro-benchmark
+- Memory bandwidth-ish micro-benchmark
+- Optional (safe) local network latency to common DNS resolvers (no scanning)
+
+Outputs:
+- A performance summary (text statements)
+- A JSON report for logging/automation
+
+Install (recommended):
+  pip install psutil
+
+Run:
+  python perf_statement_generator.py
+  python perf_statement_generator.py --json report.json --statements report.txt
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import platform
+import socket
+import statistics
+import time
+from dataclasses import asdict, dataclass
+from typing import Any, Dict, List, Optional, Tuple
+
+try:
+    import psutil  # type: ignore
+except Exception as e:
+    raise SystemExit(
+        "Missing dependency: psutil\n"
+        "Install with: pip install psutil\n"
+        f"Original error: {e}"
+    )
+
+
+# -----------------------------
+# Data models
+# -----------------------------
+@dataclass
+class Snapshot:
+    ts_utc: str
+    hostname: str
+    os: str
+    cpu_logical: int
+    cpu_physical: Optional[int]
+    cpu_freq_mhz: Optional[float]
+    cpu_usage_pct: float
+    load_avg: Optional[Tuple[float, float, float]]
+    mem_total_gb: float
+    mem_used_gb: float
+    mem_available_gb: float
+    mem_usage_pct: float
+    swap_used_gb: float
+    swap_usage_pct: float
+    disk_total_gb: float
+    disk_used_gb: float
+    disk_free_gb: float
+    disk_usage_pct: float
+    boot_time_utc: str
+
+
+@dataclass
+class Benchmarks:
+    cpu_ms_per_million_ops: float
+    mem_copy_mb_per_s: float
+    disk_write_mb_per_s: float
+    disk_read_mb_per_s: float
+    dns_ping_ms_median: Optional[float]
+
+
+@dataclass
+class Report:
+    snapshot: Snapshot
+    benchmarks: Benchmarks
+    statements: List[str]
+    recommendations: List[str]
+
+
+# -----------------------------
+# Helpers
+# -----------------------------
+def utc_iso(ts: Optional[float] = None) -> str:
+    if ts is None:
+        ts = time.time()
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(ts))
+
+
+def gb(n_bytes: float) -> float:
+    return round(n_bytes / (1024**3), 3)
+
+
+def safe_load_avg() -> Optional[Tuple[float, float, float]]:
+    # Not available on Windows in many Python builds
+    try:
+        return os.getloadavg()  # type: ignore[attr-defined]
+    except Exception:
+        return None
+
+
+def median_or_none(xs: List[float]) -> Optional[float]:
+    if not xs:
+        return None
+    return float(statistics.median(xs))
+
+
+# -----------------------------
+# Snapshots
+# -----------------------------
+def collect_snapshot(path_for_disk: str = ".") -> Snapshot:
+    hostname = socket.gethostname()
+    os_str = f"{platform.system()} {platform.release()} ({platform.machine()})"
+    cpu_logical = psutil.cpu_count(logical=True) or 0
+    cpu_physical = psutil.cpu_count(logical=False)
+
+    freq = None
+    try:
+        f = psutil.cpu_freq()
+        if f and f.current:
+            freq = float(f.current)
+    except Exception:
+        freq = None
+
+    cpu_usage = float(psutil.cpu_percent(interval=0.6))
+
+    mem = psutil.virtual_memory()
+    swap = psutil.swap_memory()
+
+    usage = psutil.disk_usage(path_for_disk)
+    boot_ts = psutil.boot_time()
+
+    return Snapshot(
+        ts_utc=utc_iso(),
+        hostname=hostname,
+        os=os_str,
+        cpu_logical=cpu_logical,
+        cpu_physical=cpu_physical,
+        cpu_freq_mhz=freq,
+        cpu_usage_pct=round(cpu_usage, 2),
+        load_avg=safe_load_avg(),
+        mem_total_gb=gb(mem.total),
+        mem_used_gb=gb(mem.used),
+        mem_available_gb=gb(mem.available),
+        mem_usage_pct=round(float(mem.percent), 2),
+        swap_used_gb=gb(swap.used),
+        swap_usage_pct=round(float(swap.percent), 2),
+        disk_total_gb=gb(usage.total),
+        disk_used_gb=gb(usage.used),
+        disk_free_gb=gb(usage.free),
+        disk_usage_pct=round(float(usage.percent), 2),
+        boot_time_utc=utc_iso(boot_ts),
+    )
+
+
+# -----------------------------
+# Benchmarks (safe, local)
+# -----------------------------
+def cpu_micro_bench(millions: int = 35) -> float:
+    """
+    Measures ms per million integer ops (rough, not scientific).
+    Lower is better.
+    """
+    n = millions * 1_000_000
+    x = 0
+    t0 = time.perf_counter()
+    # Simple deterministic loop
+    for i in range(1, n + 1):
+        x = (x + i) ^ (x << 1)
+        x &= 0xFFFFFFFF
+    t1 = time.perf_counter()
+    _ = x
+    ms_per_million = (t1 - t0) * 1000 / millions
+    return float(ms_per_million)
+
+
+def mem_copy_bench(mb: int = 256, rounds: int = 6) -> float:
+    """
+    Allocates a buffer and repeatedly copies it. Approximates memory throughput.
+    Higher is better.
+    """
+    size = mb * 1024 * 1024
+    src = bytearray(os.urandom(1024)) * (size // 1024)
+    dst = bytearray(size)
+
+    speeds: List[float] = []
+    for _ in range(rounds):
+        t0 = time.perf_counter()
+        dst[:] = src
+        t1 = time.perf_counter()
+        elapsed = max(1e-9, t1 - t0)
+        speeds.append(mb / elapsed)
+
+    return float(statistics.median(speeds))
+
+
+def disk_io_bench(tmp_dir: str = ".", file_mb: int = 256) -> Tuple[float, float]:
+    """
+    Writes and reads a temporary file to estimate disk throughput.
+    Higher is better. Cleans up file after.
+    """
+    os.makedirs(tmp_dir, exist_ok=True)
+    path = os.path.join(tmp_dir, f".perf_tmp_{int(time.time())}.bin")
+    size = file_mb * 1024 * 1024
+    chunk = 4 * 1024 * 1024
+    data = os.urandom(1024) * (chunk // 1024)
+
+    try:
+        # Write
+        t0 = time.perf_counter()
+        with open(path, "wb", buffering=0) as f:
+            remaining = size
+            while remaining > 0:
+                to_write = min(chunk, remaining)
+                f.write(data[:to_write])
+                remaining -= to_write
+        t1 = time.perf_counter()
+        write_mb_s = file_mb / max(1e-9, (t1 - t0))
+
+        # Read
+        t2 = time.perf_counter()
+        with open(path, "rb", buffering=0) as f:
+            while f.read(chunk):
+                pass
+        t3 = time.perf_counter()
+        read_mb_s = file_mb / max(1e-9, (t3 - t2))
+
+        return float(write_mb_s), float(read_mb_s)
+    finally:
+        try:
+            if os.path.exists(path):
+                os.remove(path)
+        except Exception:
+            pass
+
+
+def dns_latency_bench(
+    targets: List[Tuple[str, int]] = [("1.1.1.1", 53), ("8.8.8.8", 53)],
+    attempts_each: int = 6,
+    timeout_s: float = 0.25,
+) -> Optional[float]:
+    """
+    Measures UDP socket connect+send time to well-known DNS servers (not scanning).
+    Returns median ms across attempts; lower is better.
+    """
+    latencies: List[float] = []
+    payload = b"\x00" * 12  # minimal bytes (not a real DNS query; we just time send path)
+
+    for host, port in targets:
+        for _ in range(attempts_each):
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.settimeout(timeout_s)
+                t0 = time.perf_counter()
+                s.sendto(payload, (host, port))
+                t1 = time.perf_counter()
+                s.close()
+                latencies.append((t1 - t0) * 1000)
+            except Exception:
+                try:
+                    s.close()
+                except Exception:
+                    pass
+                continue
+
+    return median_or_none(latencies)
+
+
+# -----------------------------
+# Statement generation
+# -----------------------------
+def classify_pressure(pct: float) -> str:
+    if pct < 50:
+        return "healthy headroom"
+    if pct < 75:
+        return "moderate pressure"
+    if pct < 90:
+        return "high pressure"
+    return "critical pressure"
+
+
+def build_statements(s: Snapshot, b: Benchmarks) -> Tuple[List[str], List[str]]:
+    statements: List[str] = []
+    recs: List[str] = []
+
+    # CPU
+    cpu_line = (
+        f"CPU snapshot: {s.cpu_usage_pct:.1f}% in-use on {s.cpu_logical} logical cores"
+        + (f" ({s.cpu_physical} physical)" if s.cpu_physical else "")
+        + (f" @ ~{s.cpu_freq_mhz:.0f} MHz" if s.cpu_freq_mhz else "")
+        + f" — {classify_pressure(s.cpu_usage_pct)}."
+    )
+    statements.append(cpu_line)
+
+    if s.load_avg:
+        la1, la5, la15 = s.load_avg
+        statements.append(
+            f"System load average (1/5/15m): {la1:.2f}, {la5:.2f}, {la15:.2f} (higher than core-count can indicate CPU contention)."
+        )
+
+    # Memory
+    statements.append(
+        f"Memory snapshot: {s.mem_used_gb:.2f} GB used of {s.mem_total_gb:.2f} GB ({s.mem_usage_pct:.1f}%) — {classify_pressure(s.mem_usage_pct)}."
+    )
+    if s.swap_usage_pct > 0:
+        statements.append(
+            f"Swap usage: {s.swap_used_gb:.2f} GB in use ({s.swap_usage_pct:.1f}%)."
+        )
+
+    # Disk
+    statements.append(
+        f"Disk snapshot: {s.disk_used_gb:.2f} GB used of {s.disk_total_gb:.2f} GB ({s.disk_usage_pct:.1f}%), free: {s.disk_free_gb:.2f} GB."
+    )
+
+    # Benchmarks
+    statements.append(
+        f"CPU micro-benchmark: {b.cpu_ms_per_million_ops:.2f} ms per million integer ops (lower is better)."
+    )
+    statements.append(
+        f"Memory copy throughput: {b.mem_copy_mb_per_s:.0f} MB/s median (higher is better)."
+    )
+    statements.append(
+        f"Disk throughput (temp file): write ~{b.disk_write_mb_per_s:.0f} MB/s, read ~{b.disk_read_mb_per_s:.0f} MB/s."
+    )
+    if b.dns_ping_ms_median is not None:
+        statements.append(
+            f"Outbound network baseline (DNS send latency): ~{b.dns_ping_ms_median:.1f} ms median (lower is better)."
+        )
+    else:
+        statements.append(
+            "Outbound network baseline: DNS latency test unavailable (blocked or no connectivity)."
+        )
+
+    # Recommendations (simple heuristics)
+    if s.mem_usage_pct >= 85:
+        recs.append("Memory is tight: close high-RAM apps, reduce background services, or consider adding RAM.")
+    if s.swap_usage_pct >= 10:
+        recs.append("Swap is active: performance may degrade under load—investigate memory pressure sources.")
+    if s.disk_usage_pct >= 90:
+        recs.append("Disk is nearly full: free space to avoid slowdowns and update/install failures.")
+    if s.cpu_usage_pct >= 85:
+        recs.append("CPU is heavily utilized: identify top processes and consider workload scheduling or optimization.")
+    if b.disk_write_mb_per_s < 80:
+        recs.append("Disk write speed is modest: ensure SSD mode, check drive health, and avoid heavy background I/O.")
+    if b.dns_ping_ms_median is not None and b.dns_ping_ms_median > 15:
+        recs.append("Network latency seems elevated: check Wi-Fi signal, switch to wired, or review router/ISP health.")
+
+    if not recs:
+        recs.append("No immediate bottlenecks detected; performance profile looks stable with good headroom.")
+
+    return statements, recs
+
+
+# -----------------------------
+# Main
+# -----------------------------
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--path", default=".", help="Path used for disk usage snapshot.")
+    ap.add_argument("--tmp-dir", default=".", help="Directory for temporary disk I/O test file.")
+    ap.add_argument("--no-network", action="store_true", help="Skip the DNS latency test.")
+    ap.add_argument("--json", default=None, help="Write JSON report to this file.")
+    ap.add_argument("--statements", default=None, help="Write statements (text) to this file.")
+    args = ap.parse_args()
+
+    snap = collect_snapshot(args.path)
+
+    # Benchmarks
+    cpu_ms = cpu_micro_bench()
+    mem_mb_s = mem_copy_bench()
+    w_mb_s, r_mb_s = disk_io_bench(args.tmp_dir)
+    dns_ms = None if args.no_network else dns_latency_bench()
+
+    benches = Benchmarks(
+        cpu_ms_per_million_ops=round(cpu_ms, 4),
+        mem_copy_mb_per_s=round(mem_mb_s, 3),
+        disk_write_mb_per_s=round(w_mb_s, 3),
+        disk_read_mb_per_s=round(r_mb_s, 3),
+        dns_ping_ms_median=(round(dns_ms, 3) if dns_ms is not None else None),
+    )
+
+    statements, recs = build_statements(snap, benches)
+    report = Report(snapshot=snap, benchmarks=benches, statements=statements, recommendations=recs)
+
+    # Print to console
+    print("=== SYSTEM PERFORMANCE STATEMENTS ===")
+    for line in statements:
+        print(f"- {line}")
+    print("\n=== RECOMMENDATIONS ===")
+    for r in recs:
+        print(f"- {r}")
+
+    # Save outputs if requested
+    if args.statements:
+        with open(args.statements, "w", encoding="utf-8") as f:
+            f.write("SYSTEM PERFORMANCE STATEMENTS\n")
+            for line in statements:
+                f.write(f"- {line}\n")
+            f.write("\nRECOMMENDATIONS\n")
+            for r in recs:
+                f.write(f"- {r}\n")
+
+    if args.json:
+        with open(args.json, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "generated_at_utc": utc_iso(),
+                    **asdict(report),
+                },
+                f,
+                indent=2,
+                sort_keys=False,
+            )
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+   #!/usr/bin/env python3
+"""
+system_structure_statement_generator.py
+
+Generates *system structure* statements (architecture + configuration posture) about
+your local machine in a safe, read-only way.
+
+It inspects:
+- OS + kernel + hostname + uptime
+- CPU topology + memory + swap
+- Disks / mount points + filesystem types
+- Network interfaces + IPs + default gateway hint
+- Running processes (top consumers) (optional, safe)
+- Security posture cues (firewall status best-effort, disk encryption best-effort)
+- Service manager info (systemd on Linux) best-effort
+
+Outputs:
+- Human-readable "structure statements"
+- JSON report for automation/logging
+
+Install:
+  pip install psutil
+
+Run:
+  python system_structure_statement_generator.py
+  python system_structure_statement_generator.py --json structure.json --statements structure.txt
+  python system_structure_statement_generator.py --no-processes   # skip process sampling
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import platform
+import re
+import shutil
+import socket
+import subprocess
+import sys
+import time
+from dataclasses import asdict, dataclass
+from typing import Any, Dict, List, Optional, Tuple
+
+try:
+    import psutil  # type: ignore
+except Exception as e:
+    raise SystemExit(
+        "Missing dependency: psutil\n"
+        "Install with: pip install psutil\n"
+        f"Original error: {e}"
+    )
+
+
+# -----------------------------
+# Data models
+# -----------------------------
+@dataclass
+class OSInfo:
+    ts_utc: str
+    hostname: str
+    os: str
+    kernel: str
+    arch: str
+    python: str
+    boot_time_utc: str
+    uptime_seconds: int
+
+
+@dataclass
+class HardwareInfo:
+    cpu_logical: int
+    cpu_physical: Optional[int]
+    cpu_freq_mhz: Optional[float]
+    mem_total_gb: float
+    mem_used_gb: float
+    mem_available_gb: float
+    mem_usage_pct: float
+    swap_total_gb: float
+    swap_used_gb: float
+    swap_usage_pct: float
+
+
+@dataclass
+class DiskMount:
+    device: str
+    mountpoint: str
+    fstype: str
+    opts: str
+    total_gb: float
+    used_gb: float
+    free_gb: float
+    usage_pct: float
+
+
+@dataclass
+class NetIfAddr:
+    iface: str
+    family: str
+    address: str
+
+
+@dataclass
+class ProcessSample:
+    pid: int
+    name: str
+    cpu_pct: float
+    rss_mb: float
+
+
+@dataclass
+class SecurityCues:
+    firewall_status: Optional[str]
+    disk_encryption_hint: Optional[str]
+    secure_boot_hint: Optional[str]
+
+
+@dataclass
+class StructureReport:
+    os_info: OSInfo
+    hardware: HardwareInfo
+    disks: List[DiskMount]
+    net_addrs: List[NetIfAddr]
+    top_processes: List[ProcessSample]
+    security: SecurityCues
+    statements: List[str]
+    recommendations: List[str]
+
+
+# -----------------------------
+# Helpers
+# -----------------------------
+def utc_iso(ts: Optional[float] = None) -> str:
+    if ts is None:
+        ts = time.time()
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(ts))
+
+
+def gb(n_bytes: float) -> float:
+    return round(n_bytes / (1024**3), 3)
+
+
+def run_cmd(cmd: List[str], timeout_s: float = 2.5) -> Tuple[int, str]:
+    """
+    Best-effort command execution. Returns (exit_code, stdout+stderr).
+    Never raises to caller.
+    """
+    try:
+        p = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=timeout_s,
+            check=False,
+        )
+        out = (p.stdout or "").strip()
+        return int(p.returncode), out
+    except Exception as e:
+        return 999, f"{type(e).__name__}: {e}"
+
+
+def which(cmd: str) -> bool:
+    return shutil.which(cmd) is not None
+
+
+def safe_read_text(path: str, max_bytes: int = 64_000) -> Optional[str]:
+    try:
+        with open(path, "rb") as f:
+            data = f.read(max_bytes)
+        return data.decode("utf-8", errors="replace")
+    except Exception:
+        return None
+
+
+# -----------------------------
+# Collection: OS / hardware
+# -----------------------------
+def collect_os_info() -> OSInfo:
+    hostname = socket.gethostname()
+    os_str = f"{platform.system()} {platform.release()}"
+    kernel = platform.version()
+    arch = platform.machine()
+    py = sys.version.split()[0]
+    boot_ts = psutil.boot_time()
+    uptime = int(time.time() - boot_ts)
+
+    return OSInfo(
+        ts_utc=utc_iso(),
+        hostname=hostname,
+        os=os_str,
+        kernel=kernel,
+        arch=arch,
+        python=py,
+        boot_time_utc=utc_iso(boot_ts),
+        uptime_seconds=uptime,
+    )
+
+
+def collect_hardware() -> HardwareInfo:
+    cpu_logical = psutil.cpu_count(logical=True) or 0
+    cpu_physical = psutil.cpu_count(logical=False)
+
+    freq = None
+    try:
+        f = psutil.cpu_freq()
+        if f and f.current:
+            freq = float(f.current)
+    except Exception:
+        freq = None
+
+    vm = psutil.virtual_memory()
+    sm = psutil.swap_memory()
+
+    return HardwareInfo(
+        cpu_logical=cpu_logical,
+        cpu_physical=cpu_physical,
+        cpu_freq_mhz=freq,
+        mem_total_gb=gb(vm.total),
+        mem_used_gb=gb(vm.used),
+        mem_available_gb=gb(vm.available),
+        mem_usage_pct=round(float(vm.percent), 2),
+        swap_total_gb=gb(sm.total),
+        swap_used_gb=gb(sm.used),
+        swap_usage_pct=round(float(sm.percent), 2),
+    )
+
+
+# -----------------------------
+# Collection: disks / network
+# -----------------------------
+def collect_disks() -> List[DiskMount]:
+    disks: List[DiskMount] = []
+    for part in psutil.disk_partitions(all=False):
+        try:
+            usage = psutil.disk_usage(part.mountpoint)
+        except Exception:
+            continue
+        disks.append(
+            DiskMount(
+                device=part.device,
+                mountpoint=part.mountpoint,
+                fstype=part.fstype,
+                opts=part.opts,
+                total_gb=gb(usage.total),
+                used_gb=gb(usage.used),
+                free_gb=gb(usage.free),
+                usage_pct=round(float(usage.percent), 2),
+            )
+        )
+    # Stable ordering for readability
+    disks.sort(key=lambda d: (d.mountpoint.lower(), d.device.lower()))
+    return disks
+
+
+def collect_net_addrs() -> List[NetIfAddr]:
+    addrs: List[NetIfAddr] = []
+    for iface, addr_list in psutil.net_if_addrs().items():
+        for a in addr_list:
+            fam = str(a.family)
+            # Normalize common families
+            if "AF_INET6" in fam:
+                fam = "IPv6"
+            elif "AF_INET" in fam:
+                fam = "IPv4"
+            elif "AF_LINK" in fam or "AF_PACKET" in fam:
+                fam = "MAC"
+            else:
+                fam = fam.replace("AddressFamily.", "")
+            if not a.address:
+                continue
+            addrs.append(NetIfAddr(iface=iface, family=fam, address=a.address))
+    addrs.sort(key=lambda x: (x.iface.lower(), x.family, x.address))
+    return addrs
+
+
+# -----------------------------
+# Collection: processes (safe sampling)
+# -----------------------------
+def collect_top_processes(limit: int = 10) -> List[ProcessSample]:
+    # Prime cpu_percent
+    for p in psutil.process_iter(attrs=["pid"]):
+        try:
+            p.cpu_percent(interval=None)
+        except Exception:
+            pass
+
+    time.sleep(0.3)
+
+    procs: List[ProcessSample] = []
+    for p in psutil.process_iter(attrs=["pid", "name", "memory_info"]):
+        try:
+            cpu = float(p.cpu_percent(interval=None))
+            mi = p.info.get("memory_info")
+            rss = float(mi.rss) if mi and hasattr(mi, "rss") else 0.0
+            procs.append(
+                ProcessSample(
+                    pid=int(p.info["pid"]),
+                    name=str(p.info.get("name") or "unknown"),
+                    cpu_pct=round(cpu, 2),
+                    rss_mb=round(rss / (1024**2), 2),
+                )
+            )
+        except Exception:
+            continue
+
+    # rank by CPU then RAM
+    procs.sort(key=lambda x: (x.cpu_pct, x.rss_mb), reverse=True)
+    return procs[:limit]
+
+
+# -----------------------------
+# Best-effort security cues
+# -----------------------------
+def firewall_status_best_effort() -> Optional[str]:
+    sysname = platform.system().lower()
+
+    # Windows: netsh advfirewall show allprofiles
+    if "windows" in sysname and which("netsh"):
+        code, out = run_cmd(["netsh", "advfirewall", "show", "allprofiles"])
+        if code == 0 and out:
+            # Look for "State" lines
+            states = re.findall(r"State\s+(ON|OFF)", out, flags=re.IGNORECASE)
+            if states:
+                on = sum(1 for s in states if s.upper() == "ON")
+                return f"Windows Firewall profiles ON: {on}/{len(states)}"
+            return "Windows Firewall status available (parsed loosely)"
+        return None
+
+    # Linux: ufw status / firewall-cmd
+    if "linux" in sysname:
+        if which("ufw"):
+            code, out = run_cmd(["ufw", "status"])
+            if code == 0 and out:
+                first = out.splitlines()[0].strip()
+                return f"ufw: {first}"
+        if which("firewall-cmd"):
+            code, out = run_cmd(["firewall-cmd", "--state"])
+            if code == 0 and out:
+                return f"firewalld: {out.strip()}"
+        return None
+
+    # macOS: /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate
+    if "darwin" in sysname and which("/usr/libexec/ApplicationFirewall/socketfilterfw"):
+        code, out = run_cmd(["/usr/libexec/ApplicationFirewall/socketfilterfw", "--getglobalstate"])
+        if code == 0 and out:
+            return out.strip()
+        return None
+
+    return None
+
+
+def disk_encryption_hint_best_effort() -> Optional[str]:
+    sysname = platform.system().lower()
+
+    if "windows" in sysname:
+        # manage-bde -status (requires admin in some environments; best-effort)
+        if which("manage-bde"):
+            code, out = run_cmd(["manage-bde", "-status"])
+            if out:
+                # Too verbose; summarize with presence of "Percentage Encrypted" or "Conversion Status"
+                if "Percentage Encrypted" in out or "Conversion Status" in out:
+                    return "BitLocker status detected (see manage-bde -status output locally)"
+        return None
+
+    if "darwin" in sysname and which("fdesetup"):
+        code, out = run_cmd(["fdesetup", "status"])
+        if code == 0 and out:
+            return f"FileVault: {out.strip()}"
+
+    if "linux" in sysname:
+        # Hint: look for dm-crypt/LUKS in lsblk (if available)
+        if which("lsblk"):
+            code, out = run_cmd(["lsblk", "-o", "NAME,TYPE,FSTYPE,MOUNTPOINT"], timeout_s=3.0)
+            if code == 0 and out and ("crypt" in out or "LUKS" in out.upper()):
+                return "Disk encryption hint: dm-crypt/LUKS present (lsblk indicates crypt/LUKS)."
+        return None
+
+    return None
+
+
+def secure_boot_hint_best_effort() -> Optional[str]:
+    sysname = platform.system().lower()
+
+    if "linux" in sysname:
+        # Common hint file exists on many distros
+        if os.path.exists("/sys/firmware/efi"):
+            # Try mokutil if present
+            if which("mokutil"):
+                code, out = run_cmd(["mokutil", "--sb-state"])
+                if code == 0 and out:
+                    return f"Secure Boot: {out.strip()}"
+            return "UEFI detected (/sys/firmware/efi present); Secure Boot state unknown."
+        return None
+
+    if "windows" in sysname:
+        # Best-effort: msinfo32 isn't script-friendly; PowerShell may help but keep simple.
+        return None
+
+    if "darwin" in sysname:
+        return None
+
+    return None
+
+
+def collect_security_cues() -> SecurityCues:
+    return SecurityCues(
+        firewall_status=firewall_status_best_effort(),
+        disk_encryption_hint=disk_encryption_hint_best_effort(),
+        secure_boot_hint=secure_boot_hint_best_effort(),
+    )
+
+
+# -----------------------------
+# Statement generation
+# -----------------------------
+def fmt_uptime(seconds: int) -> str:
+    days, rem = divmod(seconds, 86400)
+    hours, rem = divmod(rem, 3600)
+    mins, _ = divmod(rem, 60)
+    if days:
+        return f"{days}d {hours}h {mins}m"
+    if hours:
+        return f"{hours}h {mins}m"
+    return f"{mins}m"
+
+
+def generate_structure_statements(
+    os_info: OSInfo,
+    hw: HardwareInfo,
+    disks: List[DiskMount],
+    net: List[NetIfAddr],
+    procs: List[ProcessSample],
+    sec: SecurityCues,
+) -> Tuple[List[str], List[str]]:
+    statements: List[str] = []
+    recs: List[str] = []
+
+    # Identity / baseline
+    statements.append(
+        f"System identity: host '{os_info.hostname}' running {os_info.os} on {os_info.arch} (kernel: {os_info.kernel})."
+    )
+    statements.append(
+        f"Runtime baseline: booted at {os_info.boot_time_utc} (uptime: {fmt_uptime(os_info.uptime_seconds)}); Python {os_info.python} available for automation."
+    )
+
+    # Compute / memory topology
+    cpu_topo = f"{hw.cpu_logical} logical CPU cores"
+    if hw.cpu_physical:
+        cpu_topo += f" / {hw.cpu_physical} physical cores"
+    if hw.cpu_freq_mhz:
+        cpu_topo += f" @ ~{hw.cpu_freq_mhz:.0f} MHz"
+    statements.append(f"Compute topology: {cpu_topo}.")
+    statements.append(
+        f"Memory topology: {hw.mem_total_gb:.2f} GB RAM total; {hw.mem_used_gb:.2f} GB used ({hw.mem_usage_pct:.1f}%), {hw.mem_available_gb:.2f} GB available."
+    )
+    if hw.swap_total_gb > 0:
+        statements.append(
+            f"Swap/pagefile: {hw.swap_total_gb:.2f} GB total; {hw.swap_used_gb:.2f} GB used ({hw.swap_usage_pct:.1f}%)."
+        )
+
+    # Storage layout
+    if disks:
+        statements.append("Storage layout: mounted volumes detected with filesystem types and utilization.")
+        for d in disks[:12]:
+            statements.append(
+                f"  - {d.mountpoint} ({d.fstype}) on {d.device}: {d.used_gb:.2f}/{d.total_gb:.2f} GB used ({d.usage_pct:.1f}%), free {d.free_gb:.2f} GB."
+            )
+        if len(disks) > 12:
+            statements.append(f"  - (and {len(disks) - 12} additional mounts)")
+    else:
+        statements.append("Storage layout: no mount information available via psutil (restricted environment).")
+
+    # Network surfaces (read-only)
+    if net:
+        statements.append("Network surfaces: interfaces and addresses currently bound on this host.")
+        # Provide a compact view (avoid dumping too much)
+        shown = 0
+        for a in net:
+            if a.family in ("IPv4", "IPv6"):
+                statements.append(f"  - {a.iface}: {a.family} {a.address}")
+                shown += 1
+            if shown >= 12:
+                break
+        if shown == 0:
+            # fallback to MAC view if no IPs
+            for a in net[:8]:
+                statements.append(f"  - {a.iface}: {a.family} {a.address}")
+    else:
+        statements.append("Network surfaces: no interface address data available (restricted environment).")
+
+    # Process / workload layer
+    if procs:
+        statements.append("Workload layer: top observed processes by CPU/RAM at sampling time.")
+        for p in procs[:10]:
+            statements.append(f"  - PID {p.pid} '{p.name}': CPU {p.cpu_pct:.1f}%, RAM {p.rss_mb:.1f} MB")
+    else:
+        statements.append("Workload layer: process sampling disabled or unavailable.")
+
+    # Security cues
+    if sec.firewall_status:
+        statements.append(f"Security cue: firewall status — {sec.firewall_status}.")
+    else:
+        statements.append("Security cue: firewall status unavailable (tooling or permissions).")
+
+    if sec.disk_encryption_hint:
+        statements.append(f"Security cue: disk encryption — {sec.disk_encryption_hint}.")
+    else:
+        statements.append("Security cue: disk encryption status not detected (best-effort).")
+
+    if sec.secure_boot_hint:
+        statements.append(f"Security cue: platform boot integrity — {sec.secure_boot_hint}.")
+    else:
+        statements.append("Security cue: platform boot integrity hint unavailable.")
+
+    # Recommendations (non-invasive)
+    # Disk capacity
+    near_full = [d for d in disks if d.usage_pct >= 90.0]
+    if near_full:
+        recs.append(
+            "At least one mounted volume is ≥90% utilized; free space to reduce update/install failures and I/O slowdowns."
+        )
+
+    if hw.mem_usage_pct >= 85.0:
+        recs.append("RAM pressure is high; reduce background apps/services or consider adding memory.")
+
+    if hw.swap_total_gb > 0 and hw.swap_usage_pct >= 10.0:
+        recs.append("Swap usage is non-trivial; investigate memory-heavy processes and reduce paging for responsiveness.")
+
+    if sec.firewall_status is None:
+        recs.append("Consider confirming host firewall state using your OS security center / firewall tooling.")
+
+    if not recs:
+        recs.append("Structure looks healthy; keep OS patched and review startup/services periodically to retain headroom.")
+
+    return statements, recs
+
+
+# -----------------------------
+# Main
+# -----------------------------
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--no-processes", action="store_true", help="Skip process sampling.")
+    ap.add_argument("--json", default=None, help="Write JSON report to this file.")
+    ap.add_argument("--statements", default=None, help="Write statements (text) to this file.")
+    args = ap.parse_args()
+
+    os_info = collect_os_info()
+    hw = collect_hardware()
+    disks = collect_disks()
+    net = collect_net_addrs()
+    procs: List[ProcessSample] = [] if args.no_processes else collect_top_processes()
+    sec = collect_security_cues()
+
+    statements, recs = generate_structure_statements(os_info, hw, disks, net, procs, sec)
+
+    report = StructureReport(
+        os_info=os_info,
+        hardware=hw,
+        disks=disks,
+        net_addrs=net,
+        top_processes=procs,
+        security=sec,
+        statements=statements,
+        recommendations=recs,
+    )
+
+    # Console output
+    print("=== SYSTEM STRUCTURE STATEMENTS ===")
+    for s in statements:
+        print(f"- {s}")
+    print("\n=== RECOMMENDATIONS ===")
+    for r in recs:
+        print(f"- {r}")
+
+    # Optional files
+    if args.statements:
+        with open(args.statements, "w", encoding="utf-8") as f:
+            f.write("SYSTEM STRUCTURE STATEMENTS\n")
+            for s in statements:
+                f.write(f"- {s}\n")
+            f.write("\nRECOMMENDATIONS\n")
+            for r in recs:
+                f.write(f"- {r}\n")
+
+    if args.json:
+        with open(args.json, "w", encoding="utf-8") as f:
+            json.dump(
+                {"generated_at_utc": utc_iso(), **asdict(report)},
+                f,
+                indent=2,
+                sort_keys=False,
+            )
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+    #!/usr/bin/env python3
+"""
+secure_intel_orchestrator.py
+
+A "superintelligence-like" orchestration skeleton:
+- Plan -> Execute -> Critique -> Improve loop
+- Strict tool allowlist (no arbitrary shell)
+- Strong schema validation (pydantic)
+- Tamper-evident audit log (hash-chained entries)
+- Safe-by-default execution model
+
+Install:
+  pip install pydantic psutil
+
+Run:
+  python secure_intel_orchestrator.py --task "Generate system structure statements"
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import time
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple
+
+import psutil
+from pydantic import BaseModel, Field, ValidationError
+
+
+# ----------------------------
+# Tamper-evident audit logging
+# ----------------------------
+class AuditEvent(BaseModel):
+    ts_utc: str
+    event_type: str
+    actor: str = "orchestrator"
+    details: Dict[str, Any]
+    prev_hash: str
+    hash: str
+
+
+class HashChainedAuditLog:
+    def __init__(self, path: str = "audit.log.jsonl") -> None:
+        self.path = path
+        self._last_hash = self._load_last_hash()
+
+    def _load_last_hash(self) -> str:
+        if not os.path.exists(self.path):
+            return "0" * 64
+        try:
+            with open(self.path, "rb") as f:
+                lines = f.read().splitlines()
+            if not lines:
+                return "0" * 64
+            last = json.loads(lines[-1].decode("utf-8"))
+            return str(last.get("hash", "0" * 64))
+        except Exception:
+            return "0" * 64
+
+    @staticmethod
+    def _utc_iso() -> str:
+        return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+    @staticmethod
+    def _hash_event(ts_utc: str, event_type: str, actor: str, details: Dict[str, Any], prev_hash: str) -> str:
+        payload = json.dumps(
+            {"ts_utc": ts_utc, "event_type": event_type, "actor": actor, "details": details, "prev_hash": prev_hash},
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return hashlib.sha256(payload).hexdigest()
+
+    def write(self, event_type: str, details: Dict[str, Any], actor: str = "orchestrator") -> AuditEvent:
+        ts = self._utc_iso()
+        prev_hash = self._last_hash
+        h = self._hash_event(ts, event_type, actor, details, prev_hash)
+        ev = AuditEvent(ts_utc=ts, event_type=event_type, actor=actor, details=details, prev_hash=prev_hash, hash=h)
+        with open(self.path, "a", encoding="utf-8") as f:
+            f.write(ev.model_dump_json() + "\n")
+        self._last_hash = h
+        return ev
+
+
+# ----------------------------
+# Strict tool interface
+# ----------------------------
+ToolName = Literal["system_snapshot", "performance_snapshot"]
+
+
+class ToolRequest(BaseModel):
+    name: ToolName
+    args: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ToolResponse(BaseModel):
+    name: ToolName
+    ok: bool
+    data: Dict[str, Any] = Field(default_factory=dict)
+    error: Optional[str] = None
+
+
+def gb(n_bytes: float) -> float:
+    return round(n_bytes / (1024**3), 3)
+
+
+def tool_system_snapshot(_: Dict[str, Any]) -> Dict[str, Any]:
+    boot = psutil.boot_time()
+    vm = psutil.virtual_memory()
+    du = psutil.disk_usage(".")
+    return {
+        "boot_time_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(boot)),
+        "uptime_s": int(time.time() - boot),
+        "cpu_logical": psutil.cpu_count(logical=True),
+        "cpu_physical": psutil.cpu_count(logical=False),
+        "mem_total_gb": gb(vm.total),
+        "mem_used_gb": gb(vm.used),
+        "mem_available_gb": gb(vm.available),
+        "mem_pct": float(vm.percent),
+        "disk_total_gb": gb(du.total),
+        "disk_used_gb": gb(du.used),
+        "disk_free_gb": gb(du.free),
+        "disk_pct": float(du.percent),
+        "platform": {
+            "pid": os.getpid(),
+            "python": os.sys.version.split()[0],
+            "os_name": os.name,
+        },
+    }
+
+
+def tool_performance_snapshot(_: Dict[str, Any]) -> Dict[str, Any]:
+    # Quick, safe snapshots (no scanning, no invasive checks)
+    cpu_pct = psutil.cpu_percent(interval=0.6)
+    vm = psutil.virtual_memory()
+    io = psutil.disk_io_counters()
+    net = psutil.net_io_counters()
+    return {
+        "cpu_pct": float(cpu_pct),
+        "mem_pct": float(vm.percent),
+        "mem_used_gb": gb(vm.used),
+        "disk_read_bytes": int(io.read_bytes) if io else None,
+        "disk_write_bytes": int(io.write_bytes) if io else None,
+        "net_sent_bytes": int(net.bytes_sent) if net else None,
+        "net_recv_bytes": int(net.bytes_recv) if net else None,
+    }
+
+
+TOOL_ALLOWLIST: Dict[ToolName, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
+    "system_snapshot": tool_system_snapshot,
+    "performance_snapshot": tool_performance_snapshot,
+}
+
+
+def run_tool(req: ToolRequest) -> ToolResponse:
+    fn = TOOL_ALLOWLIST.get(req.name)
+    if not fn:
+        return ToolResponse(name=req.name, ok=False, error="Tool not allowed")
+    try:
+        data = fn(req.args)
+        return ToolResponse(name=req.name, ok=True, data=data)
+    except Exception as e:
+        return ToolResponse(name=req.name, ok=False, error=f"{type(e).__name__}: {e}")
+
+
+# ----------------------------
+# Planner / Critic loop
+# ----------------------------
+class Plan(BaseModel):
+    goal: str
+    steps: List[str]
+    tools: List[ToolRequest]
+
+
+class Critique(BaseModel):
+    strengths: List[str]
+    risks: List[str]
+    improvements: List[str]
+
+
+def make_plan(task: str) -> Plan:
+    # Deterministic, safe plan generator (no hidden behavior)
+    tools: List[ToolRequest] = [
+        ToolRequest(name="system_snapshot", args={}),
+        ToolRequest(name="performance_snapshot", args={}),
+    ]
+    steps = [
+        "Collect system structure snapshot (CPU/memory/disk baseline).",
+        "Collect performance snapshot (CPU%, memory%, IO counters).",
+        "Generate concise structure statements.",
+        "Generate recommendations based on safe heuristics.",
+        "Run a critique pass to check clarity and safety.",
+    ]
+    return Plan(goal=task, steps=steps, tools=tools)
+
+
+def critique_output(statements: List[str], recs: List[str]) -> Critique:
+    strengths = []
+    risks = []
+    improvements = []
+
+    if statements:
+        strengths.append("Statements are present and structured.")
+    if any("password" in s.lower() or "token" in s.lower() for s in statements):
+        risks.append("Statements might contain sensitive data (should avoid secrets).")
+        improvements.append("Redact or avoid any secrets/credentials entirely.")
+
+    if len(statements) > 25:
+        improvements.append("Consider summarizing to reduce verbosity.")
+    if not recs:
+        improvements.append("Add at least one actionable recommendation.")
+
+    if not risks:
+        strengths.append("No obvious secret leakage patterns detected.")
+
+    return Critique(strengths=strengths, risks=risks, improvements=improvements)
+
+
+def generate_structure_statements(sys_data: Dict[str, Any], perf_data: Dict[str, Any]) -> Tuple[List[str], List[str]]:
+    stmts: List[str] = []
+    recs: List[str] = []
+
+    # Structure
+    stmts.append(
+        f"Compute baseline: {sys_data.get('cpu_logical')} logical cores"
+        + (f" / {sys_data.get('cpu_physical')} physical cores" if sys_data.get("cpu_physical") else "")
+        + "."
+    )
+    stmts.append(
+        f"Memory baseline: {sys_data.get('mem_used_gb')} GB used of {sys_data.get('mem_total_gb')} GB "
+        f"({sys_data.get('mem_pct')}%)."
+    )
+    stmts.append(
+        f"Storage baseline: {sys_data.get('disk_used_gb')} GB used of {sys_data.get('disk_total_gb')} GB "
+        f"({sys_data.get('disk_pct')}%), free {sys_data.get('disk_free_gb')} GB."
+    )
+
+    # Performance posture
+    stmts.append(f"CPU utilization snapshot: {perf_data.get('cpu_pct')}% (short sampling window).")
+    stmts.append(f"Memory utilization snapshot: {perf_data.get('mem_pct')}%.")
+
+    # Recommendations (safe heuristics)
+    mem_pct = float(perf_data.get("mem_pct") or 0.0)
+    cpu_pct = float(perf_data.get("cpu_pct") or 0.0)
+    disk_pct = float(sys_data.get("disk_pct") or 0.0)
+
+    if cpu_pct >= 85:
+        recs.append("CPU is heavily utilized: identify top processes and consider workload scheduling/optimization.")
+    if mem_pct >= 85:
+        recs.append("RAM pressure is high: close background apps/services or add memory to improve responsiveness.")
+    if disk_pct >= 90:
+        recs.append("Disk is nearly full: free space to prevent slowdowns and update/install failures.")
+    if not recs:
+        recs.append("No immediate bottlenecks detected; maintain patching and periodic cleanup for stability.")
+
+    return stmts, recs
+
+
+# ----------------------------
+# Orchestrator
+# ----------------------------
+def orchestrate(task: str, audit_path: str = "audit.log.jsonl") -> Dict[str, Any]:
+    audit = HashChainedAuditLog(audit_path)
+    audit.write("task_received", {"task": task})
+
+    plan = make_plan(task)
+    audit.write("plan_created", plan.model_dump())
+
+    tool_results: Dict[str, Any] = {}
+    for t in plan.tools:
+        audit.write("tool_call", {"name": t.name, "args": t.args})
+        resp = run_tool(t)
+        audit.write("tool_result", resp.model_dump())
+        if not resp.ok:
+            raise RuntimeError(f"Tool {t.name} failed: {resp.error}")
+        tool_results[t.name] = resp.data
+
+    statements, recs = generate_structure_statements(
+        sys_data=tool_results["system_snapshot"],
+        perf_data=tool_results["performance_snapshot"],
+    )
+
+    crit = critique_output(statements, recs)
+    audit.write("critique", crit.model_dump())
+
+    report = {
+        "task": task,
+        "plan": plan.model_dump(),
+        "tool_results": tool_results,
+        "statements": statements,
+        "recommendations": recs,
+        "critique": crit.model_dump(),
+    }
+    audit.write("report_ready", {"statement_count": len(statements), "recommendation_count": len(recs)})
+
+    return report
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--task", required=True, help="What you want the orchestrator to produce.")
+    ap.add_argument("--json", default=None, help="Write JSON report to this file.")
+    ap.add_argument("--audit", default="audit.log.jsonl", help="Audit log path (JSONL, hash-chained).")
+    args = ap.parse_args()
+
+    try:
+        report = orchestrate(args.task, audit_path=args.audit)
+    except ValidationError as ve:
+        print(f"[ERROR] Schema validation failed: {ve}")
+        return 2
+    except Exception as e:
+        print(f"[ERROR] {type(e).__name__}: {e}")
+        return 1
+
+    # Console output (statements only)
+    print("=== STRUCTURE / SECURITY-ORIENTED STATEMENTS ===")
+    for s in report["statements"]:
+        print(f"- {s}")
+    print("\n=== RECOMMENDATIONS ===")
+    for r in report["recommendations"]:
+        print(f"- {r}")
+
+    if args.json:
+        with open(args.json, "w", encoding="utf-8") as f:
+            json.dump(report, f, indent=2)
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+    using Microsoft.UI.Xaml;
+using Microsoft.UI.Composition.SystemBackdrops;
+using WinRT;
+
+namespace YourApp
+{
+    public sealed partial class MainWindow : Window
+    {
+        private MicaController _micaController;
+        private SystemBackdropConfiguration _configurationSource;
+
+        public MainWindow()
+        {
+            this.InitializeComponent();
+            TrySetMicaBackdrop();
+        }
+
+        private bool TrySetMicaBackdrop()
+        {
+            // Mica requires Windows 11 and support in the environment.
+            if (!MicaController.IsSupported())
+                return false;
+
+            _configurationSource = new SystemBackdropConfiguration
+            {
+                IsInputActive = true
+            };
+
+            // Track theme changes (optional but recommended)
+            this.Activated += (s, e) =>
+            {
+                _configurationSource.IsInputActive = (e.WindowActivationState != WindowActivationState.Deactivated);
+            };
+
+            _micaController = new MicaController
+            {
+                Kind = MicaKind.Base // Or MicaKind.BaseAlt
+            };
+
+            // Attach to this window
+            _micaController.AddSystemBackdropTarget(this.As<Microsoft.UI.Composition.ICompositionSupportsSystemBackdrop>());
+            _micaController.SetSystemBackdropConfiguration(_configurationSource);
+
+            return true;
+        }
+    }
+}
+#!/usr/bin/env python3
+"""
+secure_agent_kernel.py
+
+A safe, guardrailed "agent kernel" that *mimics* higher-level intelligence via:
+- Plan -> Tool -> Synthesize -> Critique loops
+- Policy engine + risk scoring + stop-the-line gates
+- Tool allowlists + typed schemas + input validation
+- Tamper-evident audit log (hash-chained JSONL)
+- Report signing (HMAC) to detect tampering
+- Lightweight anomaly detection on key metrics
+
+Install:
+  pip install pydantic psutil
+
+Run:
+  python secure_agent_kernel.py --task "Describe my system structure and health"
+  python secure_agent_kernel.py --task "Generate structure statements" --out report.json
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import hmac
+import json
+import os
+import time
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple
+
+import psutil
+from pydantic import BaseModel, Field, ValidationError, field_validator
+
+
+# ----------------------------
+# Utilities
+# ----------------------------
+def utc_iso(ts: Optional[float] = None) -> str:
+    if ts is None:
+        ts = time.time()
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(ts))
+
+
+def gb(n_bytes: float) -> float:
+    return round(n_bytes / (1024**3), 3)
+
+
+def clamp(x: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, x))
+
+
+# ----------------------------
+# Tamper-evident audit log (hash-chained)
+# ----------------------------
+class AuditEvent(BaseModel):
+    ts_utc: str
+    event_type: str
+    actor: str = "kernel"
+    details: Dict[str, Any]
+    prev_hash: str
+    hash: str
+
+
+class HashChainedAuditLog:
+    def __init__(self, path: str = "audit.jsonl") -> None:
+        self.path = path
+        self._last_hash = self._load_last_hash()
+
+    def _load_last_hash(self) -> str:
+        if not os.path.exists(self.path):
+            return "0" * 64
+        try:
+            with open(self.path, "rb") as f:
+                lines = f.read().splitlines()
+            if not lines:
+                return "0" * 64
+            last = json.loads(lines[-1].decode("utf-8"))
+            return str(last.get("hash", "0" * 64))
+        except Exception:
+            return "0" * 64
+
+    @staticmethod
+    def _hash_payload(payload: Dict[str, Any]) -> str:
+        b = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        return hashlib.sha256(b).hexdigest()
+
+    def write(self, event_type: str, details: Dict[str, Any], actor: str = "kernel") -> AuditEvent:
+        ts = utc_iso()
+        prev_hash = self._last_hash
+        payload = {"ts_utc": ts, "event_type": event_type, "actor": actor, "details": details, "prev_hash": prev_hash}
+        h = self._hash_payload(payload)
+        ev = AuditEvent(ts_utc=ts, event_type=event_type, actor=actor, details=details, prev_hash=prev_hash, hash=h)
+        with open(self.path, "a", encoding="utf-8") as f:
+            f.write(ev.model_dump_json() + "\n")
+        self._last_hash = h
+        return ev
+
+
+# ----------------------------
+# Report signing (HMAC) for integrity
+# ----------------------------
+def load_or_create_signing_key(path: str = "signing.key") -> bytes:
+    # Local-only key. If you want stronger, store in OS keychain/TPM.
+    if os.path.exists(path):
+        with open(path, "rb") as f:
+            k = f.read()
+        if len(k) < 32:
+            raise ValueError("Signing key is too short; delete signing.key to regenerate.")
+        return k
+    k = os.urandom(32)
+    with open(path, "wb") as f:
+        f.write(k)
+    return k
+
+
+def sign_report(report: Dict[str, Any], key: bytes) -> str:
+    b = json.dumps(report, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hmac.new(key, b, hashlib.sha256).hexdigest()
+
+
+# ----------------------------
+# Policy + Risk gating
+# ----------------------------
+class PolicyDecision(BaseModel):
+    allow: bool
+    risk_score: float = Field(ge=0.0, le=1.0)
+    reasons: List[str] = Field(default_factory=list)
+
+
+class PolicyEngine:
+    """
+    A tiny policy engine:
+    - denies unsafe intents
+    - scores risk based on requested tools and output scope
+    """
+
+    def __init__(self, max_risk: float = 0.55) -> None:
+        self.max_risk = max_risk
+
+    def evaluate_task(self, task: str) -> PolicyDecision:
+        t = task.lower()
+
+        # Deny obvious harmful / intrusive intents (keep broad and simple)
+        deny_phrases = [
+            "hack", "exploit", "bypass", "steal", "keylogger", "malware", "ransomware",
+            "credential", "password dump", "token dump", "scan network", "port scan",
+        ]
+        for p in deny_phrases:
+            if p in t:
+                return PolicyDecision(allow=False, risk_score=1.0, reasons=[f"Denied phrase detected: '{p}'"])
+
+        # Baseline risk: normal system reporting is low
+        base = 0.15
+        if "security" in t:
+            base += 0.10
+        if "all systems" in t or "everything" in t:
+            base += 0.10
+
+        return PolicyDecision(allow=True, risk_score=clamp(base, 0.0, 1.0), reasons=["Task within safe reporting scope."])
+
+    def evaluate_tool(self, tool_name: str, tool_args: Dict[str, Any]) -> PolicyDecision:
+        # Tools are already allowlisted; this is extra risk scoring.
+        risk = 0.10
+        reasons = ["Allowlisted tool."]
+        if tool_name == "process_sample":
+            risk += 0.15
+            reasons.append("Process sampling can expose sensitive names; redaction enforced.")
+        if tool_name == "net_interfaces":
+            risk += 0.10
+            reasons.append("Network interface data can be sensitive; no scanning performed.")
+        return PolicyDecision(allow=True, risk_score=clamp(risk, 0.0, 1.0), reasons=reasons)
+
+    def stop_the_line(self, combined_risk: float) -> bool:
+        return combined_risk > self.max_risk
+
+
+# ----------------------------
+# Tool contracts (typed schemas)
+# ----------------------------
+ToolName = Literal["system_snapshot", "net_interfaces", "disk_mounts", "process_sample", "health_anomaly"]
+
+
+class ToolRequest(BaseModel):
+    name: ToolName
+    args: Dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("args")
+    @classmethod
+    def args_must_be_dict(cls, v: Any) -> Dict[str, Any]:
+        if not isinstance(v, dict):
+            raise ValueError("args must be a dict")
+        return v
+
+
+class ToolResponse(BaseModel):
+    name: ToolName
+    ok: bool
+    data: Dict[str, Any] = Field(default_factory=dict)
+    error: Optional[str] = None
+
+
+# ----------------------------
+# Tools (safe, read-only, no scanning)
+# ----------------------------
+def t_system_snapshot(_: Dict[str, Any]) -> Dict[str, Any]:
+    boot = psutil.boot_time()
+    vm = psutil.virtual_memory()
+    sm = psutil.swap_memory()
+    cpu = psutil.cpu_percent(interval=0.6)
+    du = psutil.disk_usage(".")
+
+    return {
+        "boot_time_utc": utc_iso(boot),
+        "uptime_s": int(time.time() - boot),
+        "cpu_logical": psutil.cpu_count(logical=True),
+        "cpu_physical": psutil.cpu_count(logical=False),
+        "cpu_pct": float(cpu),
+        "mem_total_gb": gb(vm.total),
+        "mem_used_gb": gb(vm.used),
+        "mem_available_gb": gb(vm.available),
+        "mem_pct": float(vm.percent),
+        "swap_total_gb": gb(sm.total),
+        "swap_used_gb": gb(sm.used),
+        "swap_pct": float(sm.percent),
+        "disk_total_gb": gb(du.total),
+        "disk_used_gb": gb(du.used),
+        "disk_free_gb": gb(du.free),
+        "disk_pct": float(du.percent),
+        "platform": {
+            "python": os.sys.version.split()[0],
+            "os_name": os.name,
+        },
+    }
+
+
+def t_disk_mounts(_: Dict[str, Any]) -> Dict[str, Any]:
+    mounts = []
+    for p in psutil.disk_partitions(all=False):
+        try:
+            u = psutil.disk_usage(p.mountpoint)
+        except Exception:
+            continue
+        mounts.append({
+            "device": p.device,
+            "mount": p.mountpoint,
+            "fstype": p.fstype,
+            "opts": p.opts,
+            "total_gb": gb(u.total),
+            "used_gb": gb(u.used),
+            "free_gb": gb(u.free),
+            "pct": float(u.percent),
+        })
+    mounts.sort(key=lambda m: (m["mount"].lower(), m["device"].lower()))
+    return {"mounts": mounts}
+
+
+def t_net_interfaces(_: Dict[str, Any]) -> Dict[str, Any]:
+    # No scanning, only local interface addresses.
+    out = []
+    addrs = psutil.net_if_addrs()
+    for iface, lst in addrs.items():
+        for a in lst:
+            fam = str(a.family)
+            if "AF_INET6" in fam:
+                fam = "IPv6"
+            elif "AF_INET" in fam:
+                fam = "IPv4"
+            elif "AF_LINK" in fam or "AF_PACKET" in fam:
+                fam = "MAC"
+            else:
+                fam = fam.replace("AddressFamily.", "")
+            if a.address:
+                out.append({"iface": iface, "family": fam, "address": a.address})
+    out.sort(key=lambda x: (x["iface"].lower(), x["family"], x["address"]))
+    return {"addresses": out}
+
+
+def t_process_sample(args: Dict[str, Any]) -> Dict[str, Any]:
+    limit = int(args.get("limit", 10))
+    limit = max(1, min(limit, 25))
+
+    # Prime cpu_percent
+    for p in psutil.process_iter(attrs=["pid"]):
+        try:
+            p.cpu_percent(interval=None)
+        except Exception:
+            pass
+    time.sleep(0.25)
+
+    items = []
+    for p in psutil.process_iter(attrs=["pid", "name", "memory_info"]):
+        try:
+            cpu = float(p.cpu_percent(interval=None))
+            mi = p.info.get("memory_info")
+            rss = float(mi.rss) if mi and hasattr(mi, "rss") else 0.0
+            name = str(p.info.get("name") or "unknown")
+
+            # Redaction rule: don’t leak suspiciously secret-ish names
+            # (this is conservative and simple)
+            lowered = name.lower()
+            if any(k in lowered for k in ["vault", "secret", "key", "token", "password"]):
+                name = "[REDACTED_PROCESS_NAME]"
+
+            items.append({
+                "pid": int(p.info["pid"]),
+                "name": name,
+                "cpu_pct": round(cpu, 2),
+                "rss_mb": round(rss / (1024**2), 2),
+            })
+        except Exception:
+            continue
+
+    items.sort(key=lambda x: (x["cpu_pct"], x["rss_mb"]), reverse=True)
+    return {"top": items[:limit]}
+
+
+def t_health_anomaly(_: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    A tiny anomaly detector: flags if metrics are beyond thresholds.
+    This is NOT an ML model—just safe heuristics.
+    """
+    cpu = psutil.cpu_percent(interval=0.6)
+    vm = psutil.virtual_memory()
+    du = psutil.disk_usage(".")
+
+    flags = []
+    if cpu >= 90:
+        flags.append({"metric": "cpu_pct", "value": float(cpu), "reason": "CPU extremely high"})
+    if vm.percent >= 90:
+        flags.append({"metric": "mem_pct", "value": float(vm.percent), "reason": "RAM extremely high"})
+    if du.percent >= 95:
+        flags.append({"metric": "disk_pct", "value": float(du.percent), "reason": "Disk critically full"})
+
+    return {"flags": flags, "ok": len(flags) == 0}
+
+
+TOOL_ALLOWLIST: Dict[ToolName, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
+    "system_snapshot": t_system_snapshot,
+    "disk_mounts": t_disk_mounts,
+    "net_interfaces": t_net_interfaces,
+    "process_sample": t_process_sample,
+    "health_anomaly": t_health_anomaly,
+}
+
+
+def run_tool(req: ToolRequest) -> ToolResponse:
+    fn = TOOL_ALLOWLIST.get(req.name)
+    if not fn:
+        return ToolResponse(name=req.name, ok=False, error="Tool not allowed")
+    try:
+        return ToolResponse(name=req.name, ok=True, data=fn(req.args))
+    except Exception as e:
+        return ToolResponse(name=req.name, ok=False, error=f"{type(e).__name__}: {e}")
+
+
+# ----------------------------
+# "Superintelligence-like" loop: Plan -> Execute -> Synthesize -> Critique
+# ----------------------------
+class Plan(BaseModel):
+    goal: str
+    tools: List[ToolRequest]
+    synthesis_style: Literal["concise", "detailed"] = "concise"
+
+
+class Critique(BaseModel):
+    strengths: List[str]
+    risks: List[str]
+    improvements: List[str]
+
+
+def make_plan(task: str) -> Plan:
+    # Deterministic safe plan: no arbitrary tools, no external calls.
+    tools = [
+        ToolRequest(name="system_snapshot", args={}),
+        ToolRequest(name="disk_mounts", args={}),
+        ToolRequest(name="net_interfaces", args={}),
+        ToolRequest(name="process_sample", args={"limit": 10}),
+        ToolRequest(name="health_anomaly", args={}),
+    ]
+    style = "detailed" if len(task) > 40 else "concise"
+    return Plan(goal=task, tools=tools, synthesis_style=style)  # type: ignore[arg-type]
+
+
+def synthesize_statements(results: Dict[str, Any]) -> Tuple[List[str], List[str]]:
+    s = results["system_snapshot"]
+    mounts = results["disk_mounts"]["mounts"]
+    addrs = results["net_interfaces"]["addresses"]
+    procs = results["process_sample"]["top"]
+    anom = results["health_anomaly"]
+
+    statements: List[str] = []
+    recs: List[str] = []
+
+    statements.append(
+        f"System structure: {s['cpu_logical']} logical cores"
+        + (f" / {s['cpu_physical']} physical" if s.get("cpu_physical") else "")
+        + f"; uptime {s['uptime_s']}s; Python {s['platform']['python']}."
+    )
+    statements.append(
+        f"Resource posture: CPU {s['cpu_pct']:.1f}%, RAM {s['mem_used_gb']:.2f}/{s['mem_total_gb']:.2f} GB ({s['mem_pct']:.1f}%), "
+        f"Disk {s['disk_used_gb']:.2f}/{s['disk_total_gb']:.2f} GB ({s['disk_pct']:.1f}%)."
+    )
+
+    if mounts:
+        biggest = sorted(mounts, key=lambda m: m["total_gb"], reverse=True)[:3]
+        statements.append("Storage layout (largest mounts): " + "; ".join(
+            f"{m['mount']} {m['fstype']} {m['used_gb']:.1f}/{m['total_gb']:.1f} GB ({m['pct']:.1f}%)"
+            for m in biggest
+        ))
+
+    # Only show a limited number of IPs for privacy
+    ip_addrs = [a for a in addrs if a["family"] in ("IPv4", "IPv6")]
+    if ip_addrs:
+        show = ip_addrs[:6]
+        statements.append("Network bindings (sample): " + ", ".join(f"{a['iface']}={a['address']}" for a in show))
+    else:
+        statements.append("Network bindings: none detected (or restricted environment).")
+
+    if procs:
+        statements.append("Workload hotspots (sample): " + "; ".join(
+            f"{p['name']} cpu={p['cpu_pct']:.1f}% ram={p['rss_mb']:.1f}MB" for p in procs[:5]
+        ))
+
+    if anom.get("ok"):
+        statements.append("Anomaly check: no critical threshold breaches detected in CPU/RAM/Disk.")
+    else:
+        statements.append("Anomaly check: threshold flags detected: " + "; ".join(
+            f"{f['metric']}={f['value']} ({f['reason']})" for f in anom.get("flags", [])
+        ))
+
+    # Recommendations (safe heuristics)
+    if s["disk_pct"] >= 90:
+        recs.append("Free disk space on the most utilized mount(s) to prevent slowdowns and update failures.")
+    if s["mem_pct"] >= 85:
+        recs.append("Reduce RAM pressure: close high-memory apps, trim startup items, or add memory if needed.")
+    if s["cpu_pct"] >= 85:
+        recs.append("Investigate high CPU consumers: schedule heavy workloads or optimize hotspots.")
+    if float(s.get("swap_pct", 0.0)) >= 10:
+        recs.append("Swap/pagefile usage is meaningful; aim to reduce paging for responsiveness.")
+    if not recs:
+        recs.append("System appears stable: keep patches current and review background services periodically.")
+
+    return statements, recs
+
+
+def critique(statements: List[str], recs: List[str]) -> Critique:
+    strengths = []
+    risks = []
+    improvements = []
+
+    if statements:
+        strengths.append("Generated structured system statements.")
+    if len(statements) > 12:
+        improvements.append("Consider condensing to 5–8 statements for quicker consumption.")
+    if not recs:
+        improvements.append("Add at least one actionable recommendation.")
+    # Keep a conservative privacy note
+    risks.append("System outputs may include environment details; store reports securely and avoid sharing publicly.")
+
+    return Critique(strengths=strengths, risks=risks, improvements=improvements)
+
+
+# ----------------------------
+# Kernel orchestration
+# ----------------------------
+def orchestrate(task: str, out_path: Optional[str], audit_path: str) -> Dict[str, Any]:
+    audit = HashChainedAuditLog(audit_path)
+    policy = PolicyEngine(max_risk=0.55)
+
+    audit.write("task_received", {"task": task})
+
+    task_dec = policy.evaluate_task(task)
+    audit.write("policy_task", task_dec.model_dump())
+    if not task_dec.allow:
+        raise PermissionError("Policy denied task: " + "; ".join(task_dec.reasons))
+
+    plan = make_plan(task)
+    audit.write("plan_created", plan.model_dump())
+
+    # Evaluate tools under policy and compute combined risk
+    tool_risks = []
+    for t in plan.tools:
+        d = policy.evaluate_tool(t.name, t.args)
+        audit.write("policy_tool", {"tool": t.name, **d.model_dump()})
+        if not d.allow:
+            raise PermissionError(f"Policy denied tool {t.name}: " + "; ".join(d.reasons))
+        tool_risks.append(d.risk_score)
+
+    combined_risk = clamp(max([task_dec.risk_score] + tool_risks), 0.0, 1.0)
+    audit.write("risk_combined", {"combined_risk": combined_risk})
+    if policy.stop_the_line(combined_risk):
+        raise PermissionError(f"Risk gate tripped (risk={combined_risk:.2f} > {policy.max_risk:.2f}).")
+
+    # Execute tools
+    results: Dict[str, Any] = {}
+    for t in plan.tools:
+        audit.write("tool_call", t.model_dump())
+        resp = run_tool(t)
+        audit.write("tool_result", resp.model_dump())
+        if not resp.ok:
+            raise RuntimeError(f"Tool failed: {t.name} -> {resp.error}")
+        results[t.name] = resp.data
+
+    statements, recs = synthesize_statements(results)
+    crit = critique(statements, recs)
+    audit.write("critique", crit.model_dump())
+
+    report: Dict[str, Any] = {
+        "generated_at_utc": utc_iso(),
+        "task": task,
+        "policy": task_dec.model_dump(),
+        "combined_risk": combined_risk,
+        "plan": plan.model_dump(),
+        "results": results,
+        "statements": statements,
+        "recommendations": recs,
+        "critique": crit.model_dump(),
+        "audit_log": audit_path,
+    }
+
+    # Sign the report so you can detect tampering later
+    key = load_or_create_signing_key()
+    report["hmac_sha256"] = sign_report(report, key)
+
+    if out_path:
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(report, f, indent=2)
+        audit.write("report_written", {"path": out_path})
+
+    return report
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--task", required=True)
+    ap.add_argument("--out", default=None, help="Write full JSON report here (optional).")
+    ap.add_argument("--audit", default="audit.jsonl", help="Audit log path.")
+    args = ap.parse_args()
+
+    try:
+        report = orchestrate(args.task, args.out, args.audit)
+    except (ValidationError, PermissionError) as e:
+        print(f"[DENIED] {e}")
+        return 2
+    except Exception as e:
+        print(f"[ERROR] {type(e).__name__}: {e}")
+        return 1
+
+    print("=== STRUCTURE / SECURITY STATEMENTS ===")
+    for s in report["statements"]:
+        print(f"- {s}")
+    print("\n=== RECOMMENDATIONS ===")
+    for r in report["recommendations"]:
+        print(f"- {r}")
+    print(f"\nSigned report HMAC: {report['hmac_sha256']}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+    using Microsoft.UI.Composition.SystemBackdrops;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
+using WinRT;
+
+namespace YourApp
+{
+    public sealed partial class MainWindow : Window
+    {
+        private MicaController? _micaController;
+        private SystemBackdropConfiguration? _backdropConfig;
+
+        public MainWindow()
+        {
+            this.InitializeComponent();
+            TrySetSystemBackdrop();
+        }
+
+        private void TrySetSystemBackdrop()
+        {
+            if (!MicaController.IsSupported())
+            {
+                // Fallback: do nothing (or set a solid background)
+                return;
+            }
+
+            _backdropConfig = new SystemBackdropConfiguration
+            {
+                IsInputActive = true
+            };
+
+            // Keep configuration in sync with window activation
+            this.Activated += (s, e) =>
+            {
+                if (_backdropConfig != null)
+                    _backdropConfig.IsInputActive = e.WindowActivationState != WindowActivationState.Deactivated;
+            };
+
+            // Keep configuration in sync with app theme
+            // If you have a root element, you can observe ActualThemeChanged.
+            if (this.Content is FrameworkElement root)
+            {
+                root.ActualThemeChanged += (s, e) =>
+                {
+                    if (_backdropConfig != null)
+                        _backdropConfig.Theme = MapTheme(root.ActualTheme);
+                };
+
+                _backdropConfig.Theme = MapTheme(root.ActualTheme);
+            }
+
+            _micaController = new MicaController
+            {
+                Kind = MicaKind.Base
+            };
+
+            _micaController.AddSystemBackdropTarget(this.As<Microsoft.UI.Composition.ICompositionSupportsSystemBackdrop>());
+            _micaController.SetSystemBackdropConfiguration(_backdropConfig);
+
+            // Cleanup when the window closes
+            this.Closed += (_, __) =>
+            {
+                _micaController?.Dispose();
+                _micaController = null;
+                _backdropConfig = null;
+            };
+        }
+
+        private static SystemBackdropTheme MapTheme(ElementTheme theme)
+        {
+            return theme switch
+            {
+                ElementTheme.Dark => SystemBackdropTheme.Dark,
+                ElementTheme.Light => SystemBackdropTheme.Light,
+                _ => SystemBackdropTheme.Default,
+            };
+        }
+    }
+}
