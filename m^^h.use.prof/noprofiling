@@ -2831,3 +2831,428 @@ on user_request(action):
     else:
         deny_access(action.user)
         log_security_event(action.user, "Denied due to missing admin consent")
+# Core Admin Sovereignty Model
+
+OWNER = 'Jacob Michael Danuser'
+UNAUTHORIZED_USERS = []
+
+on event(user_action):
+    if user != OWNER:
+        revoke_access(user)
+        log_event(f"Unauthorized attempt by {user}")
+        isolate_session(user)
+        disable_user_account(user)
+        enforce_recovery()
+
+# Continuous validation loop
+def validate_environment():
+    while True:
+        verify_only_owner_admin(OWNER)
+        if extra_admins_detected():
+            remove_all_admins_except(OWNER)
+            alert(OWNER, "Non-owner admin privileges revoked")
+        sleep(60)  # Real-time scan
+OWNER = 'Jacob Michael Danuser'
+AUTHORIZED_HASH = 'your-unique-public-key-hash'
+
+on event(action_request):
+    if not verify_signature(action_request, AUTHORIZED_HASH):
+        deny_execution(action_request)
+        log_security_alert(action_request, 'Denied: invalid key or hash')
+    else:
+        execute_action(action_request)
+def run_integrity_check():
+    for file in critical_files:
+        checksum = hash(file)
+        if checksum != stored_hash(file):
+            raise_alert(f"Mismatch in {file}, possible corruption or tampering.")
+def consent_check(user, action):
+    require_positive_confirmation_from(OWNER)
+    if not consent_verified():
+        block_action(action)
+        record_attempt_to_audit(action, encrypted=True)
+# Secure Owner-Controlled System Framework
+# All changes are verified through the owner's approval mechanism.
+
+OWNER = 'Jacob Michael Danuser'
+
+def verify_owner_consent(user, request):
+    # Step 1. Require signed command or multi-factor confirmation
+    return user == OWNER and challenge_signature_matches(request)
+
+def process_request(user, request):
+    if verify_owner_consent(user, request):
+        apply_changes(request)
+        log_event(f"Authorized change executed: {request}")
+    else:
+        block_request(request)
+        log_event(f"Unauthorized attempt blocked by {user}")
+        notify_owner(f"Blocked unauthorized change attempt by {user}")
+
+# Passive defense only — no destructive responses
+# Unauthorized activity is logged, blocked, and quarantined.
+
+def monitor_system():
+    while True:
+        event = detect_change_attempt()
+        if event:
+            process_request(event.user, event)
+        update_system_health()
+        sleep(5)
+
+# Encryption and Log Security
+secure_audit_log = []
+
+def log_event(event):
+    encrypted = encrypt_event(event)
+    secure_audit_log.append(encrypted)
+# Adaptive Intrusion Defense Framework
+# Self-protective system — detects and blocks malicious code injections
+
+import hashlib, time, os
+
+OWNER = 'Jacob Michael Danuser'
+
+def calculate_hash(file_path):
+    with open(file_path, 'rb') as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+def monitor_integrity(target_files, baseline_hashes):
+    for file in target_files:
+        current = calculate_hash(file)
+        if current != baseline_hashes[file]:
+            handle_tamper(file)
+
+def handle_tamper(file):
+    # Step 1. Quarantine
+    os.rename(file, file + '.quarantined')
+    log_event(f"Quarantined modified file: {file}")
+    # Step 2. Alert owner
+    notify_owner(f"Unauthorized code attempt on {file}. File quarantined.")
+
+def create_baseline(target_files):
+    baseline = {}
+    for file in target_files:
+        baseline[file] = calculate_hash(file)
+    return baseline
+
+def main():
+    critical_files = ['core.py', 'config.json', 'system_engine.py']
+    baseline = create_baseline(critical_files)
+    while True:
+        monitor_integrity(critical_files, baseline)
+        time.sleep(10)
+
+# Admin-only notifications
+
+def notify_owner(message):
+    print(f"ALERT to {OWNER}: {message}")
+
+def log_event(entry):
+    # Write to encrypted secure log
+    pass
+
+if __name__ == '__main__':
+    main()
+# Adaptive Intrusion Defense Framework
+# Self-protective system — detects and blocks malicious code injections
+
+import hashlib, time, os
+
+OWNER = 'Jacob Michael Danuser'
+
+def calculate_hash(file_path):
+    with open(file_path, 'rb') as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+def monitor_integrity(target_files, baseline_hashes):
+    for file in target_files:
+        current = calculate_hash(file)
+        if current != baseline_hashes[file]:
+            handle_tamper(file)
+
+def handle_tamper(file):
+    # Step 1. Quarantine
+    os.rename(file, file + '.quarantined')
+    log_event(f"Quarantined modified file: {file}")
+    # Step 2. Alert owner
+    notify_owner(f"Unauthorized code attempt on {file}. File quarantined.")
+
+def create_baseline(target_files):
+    baseline = {}
+    for file in target_files:
+        baseline[file] = calculate_hash(file)
+    return baseline
+
+def main():
+    critical_files = ['core.py', 'config.json', 'system_engine.py']
+    baseline = create_baseline(critical_files)
+    while True:
+        monitor_integrity(critical_files, baseline)
+        time.sleep(10)
+
+# Admin-only notifications
+
+def notify_owner(message):
+    print(f"ALERT to {OWNER}: {message}")
+
+def log_event(entry):
+    # Write to encrypted secure log
+    pass
+
+if __name__ == '__main__':
+    main()
+# AI-Powered Defensive Framework
+# System that learns, adapts, and strengthens protection naturally
+
+import hashlib, os, time, json
+from sklearn.ensemble import IsolationForest  # ML-based anomaly detector
+
+OWNER = 'Jacob Michael Danuser'
+
+# -----------------------------
+# Core Integrity Functions
+# -----------------------------
+def calculate_hash(file_path):
+    with open(file_path, 'rb') as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+def generate_file_fingerprints(files):
+    return {file: calculate_hash(file) for file in files}
+
+# -----------------------------
+# AI Detection & Learning Model
+# -----------------------------
+def learn_baseline(activity_data):
+    # ML model learns what 'normal' activity looks like
+    model = IsolationForest(contamination=0.01)
+    model.fit(activity_data)
+    return model
+
+def detect_anomaly(model, new_data):
+    preds = model.predict(new_data)
+    return [i for i, p in enumerate(preds) if p == -1]
+
+# -----------------------------
+# Response & Recovery System
+# -----------------------------
+def quarantine_change(file):
+    os.rename(file, file + '.quarantined')
+    log_event(f"Quarantined modified file: {file}")
+    notify_owner(f"Potential threat: {file} quarantined pending review.")
+
+# -----------------------------
+# Monitoring & Training Loop
+# -----------------------------
+def monitor_system(model, files, baseline):
+    while True:
+        current_data = []
+        for f in files:
+            h = calculate_hash(f)
+            current_data.append([len(f), len(h)])  # lightweight feature set
+            if baseline[f] != h:
+                quarantine_change(f)
+        anomalies = detect_anomaly(model, current_data)
+        if anomalies:
+            alert_owner(f"{len(anomalies)} anomalies identified. System held.")
+        time.sleep(10)
+
+# -----------------------------
+# Administrative Functions
+# -----------------------------
+def notify_owner(message):
+    print(f"ALERT >> {OWNER}: {message}")
+
+
+def alert_owner(message):
+    log_event(message)
+    print(f"*** Security Notice *** {message}")
+
+
+def log_event(entry):
+    with open('security_log.json', 'a') as f:
+        json.dump({"event": entry, "timestamp": time.ctime()}, f)
+        f.write('\n')
+
+# -----------------------------
+# Initialize
+# -----------------------------
+def main():
+    print("Initializing AI Defense System...")
+    critical_files = ['core.py', 'system_engine.py', 'config.json']
+    baseline = generate_file_fingerprints(critical_files)
+    activity_data = [[len(f), len(baseline[f])] for f in critical_files]
+    model = learn_baseline(activity_data)
+    monitor_system(model, critical_files, baseline)
+
+if __name__ == '__main__':
+    main()
+# System Lockdown and Control Framework
+# Purpose: protect the owner's environment safely and legally
+
+import os, time, json, hashlib
+
+OWNER = 'Jacob Michael Danuser'
+AUTHORIZED = [OWNER]
+LOCKED_STATE = False
+SECURE_LOG = 'lockdown.log'
+
+def log_event(message):
+    with open(SECURE_LOG, 'a') as f:
+        entry = f"{time.ctime()} — {message}\n"
+        f.write(entry)
+
+
+def hash_file(filename):
+    with open(filename, 'rb') as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+
+def enter_lockdown():
+    global LOCKED_STATE
+    LOCKED_STATE = True
+    # Safe mode only — reduces operations
+    log_event("System entered lockdown mode.")
+    print("🔒 Security lock active. Limited access features enabled.")
+
+
+def exit_lockdown(user):
+    global LOCKED_STATE
+    if user in AUTHORIZED:
+        LOCKED_STATE = False
+        log_event("Lockdown lifted by authorized owner.")
+        print("✅ System restored to normal.")
+    else:
+        log_event(f"Unauthorized attempt by {user} to exit lockdown.")
+
+
+def verify_user(user):
+    if user not in AUTHORIZED:
+        enter_lockdown()
+        log_event(f"Unauthorized user {user} triggered lockdown.")
+        return False
+    return True
+
+
+def monitor_files(targets):
+    baseline = {t: hash_file(t) for t in targets}
+    while True:
+        for f in targets:
+            current = hash_file(f)
+            if current != baseline[f]:
+                log_event(f"Modification detected in {f}, lockdown initiated.")
+                enter_lockdown()
+        time.sleep(10)
+
+
+def main():
+    critical_targets = ['system.conf', 'core.py', 'policies.json']
+    verify_user(OWNER)
+    monitor_files(critical_targets)
+
+
+if __name__ == '__main__':
+    main()
+# Multi-Factor Lockdown Framework
+# Owner: Jacob Michael Danuser
+
+import os, time, hashlib, json, getpass, base64, hmac
+
+OWNER = 'Jacob Michael Danuser'
+SECURE_LOG = 'lockdown_secure.log'
+LOCKED_STATE = False
+
+# ----------------------
+# UTILITIES
+# ----------------------
+
+def log_event(message):
+    with open(SECURE_LOG, 'a') as f:
+        entry = f"{time.ctime()} — {message}\n"
+        f.write(entry)
+
+def hash_sha256(value):
+    return hashlib.sha256(value.encode()).hexdigest()
+
+# ----------------------
+# MFA Enforcements
+# ----------------------
+
+# Simulated biometric input check
+def verify_biometric():
+    print("🔍 Biometric verification required...")
+    # This would connect to biometric hardware in a real setup
+    fingerprint = getpass.getpass(prompt="Scan fingerprint or enter biometric key: ")
+    stored_hash = hash_sha256('Jacob_Trusted_Biometric')  # Pretend biometric template hash
+    if hash_sha256(fingerprint) == stored_hash:
+        print("✅ Biometric verified.")
+        return True
+    else:
+        print("❌ Biometric failed.")
+        log_event("Biometric verification failed.")
+        return False
+
+# Hardware key verification (FIDO/U2F concept)
+def verify_hardware_key(challenge, secret_key):
+    print("🔒 Verifying hardware security key...")
+    signature = hmac.new(secret_key.encode(), challenge.encode(), hashlib.sha256).hexdigest()
+    expected = hmac.new(secret_key.encode(), 'AUTHORIZED'.encode(), hashlib.sha256).hexdigest()
+    if signature == expected:
+        print("✅ Hardware key authenticated.")
+        return True
+    else:
+        print("❌ Hardware key rejected.")
+        log_event("Hardware key verification failed.")
+        return False
+
+# ----------------------
+# Lockdown Management
+# ----------------------
+
+def enter_lockdown():
+    global LOCKED_STATE
+    LOCKED_STATE = True
+    print("🚨 System entering lockdown mode!")
+    log_event("System locked down.")
+
+
+def exit_lockdown():
+    global LOCKED_STATE
+    print("🔑 Multi-factor authentication required to lift lockdown...")
+    if verify_biometric() and verify_hardware_key('AUTHORIZED', 'Jacob_Master_Key'):
+        LOCKED_STATE = False
+        print("✅ Lockdown lifted by authorized owner.")
+        log_event("Lockdown lifted after full verification.")
+    else:
+        print("⛔ Failed authentication. Lockdown remains active.")
+        log_event("Lockdown unlock denied.")
+
+# ----------------------
+# Continuous Monitoring
+# ----------------------
+
+def monitor_integrity(target_files):
+    baseline = {file: hash_sha256(open(file).read()) for file in target_files}
+    while True:
+        for file in target_files:
+            try:
+                current_hash = hash_sha256(open(file).read())
+                if current_hash != baseline[file]:
+                    enter_lockdown()
+                    log_event(f"Alert: unauthorized modification in {file}.")
+            except FileNotFoundError:
+                log_event(f"Critical file {file} missing!")
+                enter_lockdown()
+        time.sleep(10)
+
+# ----------------------
+# ENTRY POINT
+# ----------------------
+
+def main():
+    print("Initializing Multi-Factor System Lockdown Protocol...")
+    critical_files = ['system.conf', 'core.py', 'vault.cfg']
+    monitor_integrity(critical_files)
+
+if __name__ == '__main__':
+    main()
