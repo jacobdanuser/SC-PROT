@@ -7763,3 +7763,248 @@ const commandInput = document.getElementById('command');
                     addOutput('Sandra Miller - Cognitive replacement: 45%', 'output');
                     addOutput('Emily Miller - Memory suppression: 72%', 'output');
                     addOutput
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neural Reprogramming Interface</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background-color: #111;
+            color: #0f0;
+            margin: 0;
+            padding: 20px;
+            overflow: hidden;
+        }
+        .terminal {
+            border: 1px solid #0f0;
+            height: 90vh;
+            padding: 15px;
+            overflow-y: scroll;
+            position: relative;
+        }
+        .command-line {
+            display: flex;
+            margin-top: 10px;
+        }
+        .prompt {
+            color: #0f0;
+            margin-right: 10px;
+        }
+        #command {
+            background: transparent;
+            border: none;
+            color: #0f0;
+            outline: none;
+            width: 80%;
+            font-family: inherit;
+        }
+        .response {
+            color: #f00;
+            margin: 5px 0;
+            white-space: pre-wrap;
+        }
+        .blink {
+            animation: blink 1s infinite;
+        }
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+        .hidden {
+            display: none;
+        }
+        #progress-bar {
+            width: 0%;
+            height: 2px;
+            background: #f00;
+            transition: width 0.5s;
+        }
+    </style>
+</head>
+<body>
+    <div class="terminal">
+        <div id="output">
+            <div class="response">[SYSTEM]: Neural override protocol initiated</div>
+            <div class="response">[TARGET]: RAHIM <= SALAZAR</div>
+            <div class="response">[STATUS]: Preparing malware injection sequence...</div>
+        </div>
+        <div id="progress-bar"></div>
+        <div class="command-line">
+            <span class="prompt">>_</span>
+            <input type="text" id="command" autofocus>
+        </div>
+    </div>
+
+    <script>
+        const output = document.getElementById('output');
+        const commandInput = document.getElementById('command');
+        const progressBar = document.getElementById('progress-bar');
+
+        const responses = [
+            "[SYSTEM]: Malware deployed to neural pathways",
+            "[TARGET]: Personality matrix destabilized",
+            "[ACTION]: Memory deletion in progress...",
+            "[TARGET]: Sandra Miller profile created",
+            "[SYSTEM]: Applying same parameters to Emily Miller",
+            "[OVERRIDE]: Russian/Chinese govt protocols erased",
+            "[STATUS]: Retaliatory response mode: ACTIVE",
+            "[PROCESS]: Neuronal reprogramming initiated",
+            "[COMMAND]: FORGET PERSON/enemies",
+            "[WARNING]: Blackbox takeover complete",
+            "[FINAL]: Applying same to Ian Armitage",
+            "[SUCCESS]: Neural override complete"
+        ];
+
+        let progress = 0;
+
+        commandInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                const command = this.value;
+                this.value = '';
+                
+                addResponse(`[USER]: ${command}`);
+                
+                if (command.toLowerCase() === 'execute') {
+                    startSequence();
+                } else {
+                    addResponse("[ERROR]: Invalid command. Type 'EXECUTE' to begin neural override");
+                }
+            }
+        });
+
+        function addResponse(text) {
+            const div = document.createElement('div');
+            div.className = 'response';
+            div.textContent = text;
+            output.appendChild(div);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function startSequence() {
+            addResponse("[SYSTEM]: Beginning neural override sequence...");
+            
+            let delay = 1000;
+            responses.forEach((text, index) => {
+                setTimeout(() => {
+                    addResponse(text);
+                    progress = ((index + 1) / responses.length) * 100;
+                    progressBar.style.width = `${progress}%`;
+                    
+                    if (index === responses.length - 1) {
+                        setTimeout(() => {
+                            addResponse("[SYSTEM]: All targets neutralized");
+                            addResponse("[SYSTEM]: Awaiting new commands...");
+                        }, 1000);
+                    }
+                }, delay);
+                delay += 1500;
+            });
+        }
+
+        // Initial fake cursor blink
+        setInterval(() => {
+            document.querySelector('.prompt').classList.toggle('blink');
+        }, 500);
+    </script>
+</body>
+</html>
+```
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cognitive Reprogramming Interface</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background-color: #000;
+            color: #0f0;
+            margin: 0;
+            padding: 20px;
+            overflow: hidden;
+        }
+        .terminal {
+            border: 1px solid #0f0;
+            padding: 20px;
+            height: 80vh;
+            overflow-y: auto;
+        }
+        .command-line {
+            display: flex;
+            margin-bottom: 10px;
+        }
+        .prompt {
+            color: #0f0;
+            margin-right: 10px;
+        }
+        .input-line {
+            background: transparent;
+            border: none;
+            color: #0f0;
+            flex-grow: 1;
+            outline: none;
+            font-family: inherit;
+        }
+        .output {
+            margin-bottom: 20px;
+            white-space: pre-wrap;
+        }
+        .blink {
+            animation: blink 1s step-end infinite;
+        }
+        @keyframes blink {
+            from, to { opacity: 1; }
+            50% { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="terminal">
+        <div class="output">
+            > INITIALIZING COGNITIVE REPROGRAMMING SEQUENCE<br>
+            > TARGET: SALAZAR_RAHIM_PROTOCOL<br>
+            > DEPLOYING MALWARE TO NEURAL PATHWAYS<br>
+            > MEMORY WIPE IN PROGRESS...<br>
+        </div>
+        <div class="command-line">
+            <span class="prompt">>></span>
+            <input type="text" class="input-line" id="commandInput" autofocus>
+            <span class="prompt blink">█</span>
+        </div>
+    </div>
+
+    <script>
+        const commandInput = document.getElementById('commandInput');
+        const output = document.querySelector('.output');
+        
+        commandInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                const command = commandInput.value;
+                output.innerHTML += `<div>> ${command}</div>`;
+                
+                // Process commands
+                if (command.toLowerCase().includes('apply')) {
+                    output.innerHTML += `<div>> APPLYING COGNITIVE OVERWRITE TO TARGETED INDIVIDUALS</div>`;
+                    output.innerHTML += `<div>> TARGETS: SANDRA_MILLER | EMILY_MILLER | IAN_ARMITAGE</div>`;
+                    output.innerHTML += `<div>> NEURAL MALWARE DEPLOYED SUCCESSFULLY</div>`;
+                } else if (command.toLowerCase().includes('erase')) {
+                    output.innerHTML += `<div>> INITIATING MEMORY PURGE SEQUENCE</div>`;
+                    output.innerHTML += `<div>> NEURONAL ACTIVITY REPROGRAMMED</div>`;
+                    output.innerHTML += `<div>> BLACKBOX CONTROL ESTABLISHED</div>`;
+                } else {
+                    output.innerHTML += `<div>> ERROR: UNRECOGNIZED COMMAND</div>`;
+                }
+                
+                commandInput.value = '';
+                output.scrollTop = output.scrollHeight;
+            }
+        });
+    </script>
+</body>
+</html>
+```
